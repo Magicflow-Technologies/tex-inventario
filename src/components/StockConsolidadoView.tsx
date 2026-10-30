@@ -14,6 +14,7 @@ import {
   Search,
   ShoppingCart,
   Ruler,
+  Trash2,
 } from 'lucide-react';
 
 interface StockConsolidadoViewProps {
@@ -61,6 +62,35 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
 
   const toggleExpand = (telaId: string) => {
     setExpandedTelaId((curr) => (curr === telaId ? null : telaId));
+  };
+
+  const handleDeleteTela = (item: StockConsolidadoTela) => {
+    const totalRollos = item.total_rollos_disponibles + (item.total_rollos_reservados || 0);
+    const msg =
+      totalRollos > 0
+        ? `¿Estás seguro de eliminar la tela "${item.nombre}" (${item.codigo})?\n\nEsto también eliminará sus ${totalRollos} rollo(s) en inventario.`
+        : `¿Estás seguro de eliminar la tela "${item.nombre}" (${item.codigo})?`;
+    if (!window.confirm(msg)) return;
+    try {
+      inventoryStore.deleteTela(item.tela_id);
+      if (expandedTelaId === item.tela_id) setExpandedTelaId(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar tela');
+    }
+  };
+
+  const handleDeleteRollo = (rollo: RolloConTela) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de eliminar el rollo físico ${rollo.codigo_rollo} (${rollo.metraje.toFixed(2)} m) del inventario?`
+      )
+    )
+      return;
+    try {
+      inventoryStore.deleteRollo(rollo.id);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar rollo');
+    }
   };
 
   return (
@@ -363,6 +393,14 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                 + Ingresar
                               </button>
                             )}
+
+                            <button
+                              onClick={() => handleDeleteTela(item)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Eliminar esta tela del catálogo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -455,6 +493,13 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                                   <Tag className="w-3.5 h-3.5" />
                                                 </button>
                                               )}
+                                              <button
+                                                onClick={() => handleDeleteRollo(rollo)}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                title="Eliminar rollo físico"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
                                             </div>
                                           </td>
                                         </tr>

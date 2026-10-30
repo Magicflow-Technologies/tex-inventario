@@ -14,6 +14,7 @@ import {
   Building,
   Layers,
   Ban,
+  Trash2,
   Plus,
   Receipt,
   Truck,
@@ -105,6 +106,20 @@ export const PedidosPorFacturarView: React.FC<PedidosPorFacturarViewProps> = ({
       setModalError(msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePedido = (pedido: PedidoCompleto) => {
+    const msg =
+      pedido.estado === 'PENDIENTE_FACTURACION'
+        ? `¿Estás seguro de eliminar el pedido ${pedido.codigo_pedido} de "${pedido.cliente_nombre}"?\n\nSus ${pedido.total_rollos} rollo(s) reservado(s) volverán a estar DISPONIBLES en inventario.`
+        : `¿Estás seguro de eliminar permanentemente el registro del pedido ${pedido.codigo_pedido}?`;
+    if (!window.confirm(msg)) return;
+    try {
+      inventoryStore.deletePedido(pedido.id);
+      if (expandedPedidoId === pedido.id) setExpandedPedidoId(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar pedido');
     }
   };
 
@@ -329,12 +344,20 @@ export const PedidosPorFacturarView: React.FC<PedidosPorFacturarViewProps> = ({
                       {isPending && (
                         <button
                           onClick={() => setPedidoParaAnular(pedido)}
-                          className="p-2 text-slate-600 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                          className="p-2 text-slate-600 hover:text-amber-600 bg-slate-100 hover:bg-amber-50 rounded-xl transition-all cursor-pointer"
                           title="Anular Pedido y Liberar Rollos"
                         >
                           <Ban className="w-4 h-4" />
                         </button>
                       )}
+
+                      <button
+                        onClick={() => handleDeletePedido(pedido)}
+                        className="p-2 text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                        title="Eliminar Pedido"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
 
                       <button
                         onClick={() => setExpandedPedidoId(isExpanded ? null : pedido.id)}

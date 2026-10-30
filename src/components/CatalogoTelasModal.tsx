@@ -5,6 +5,7 @@ import {
   Layers,
   Plus,
   Edit2,
+  Trash2,
   X,
   Search,
   CheckCircle2,
@@ -164,6 +165,25 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     }
   };
 
+  const handleDeleteTela = (tela: Tela) => {
+    const rollosAsociados = inventoryStore.getRollos().filter((r) => r.tela_id === tela.id);
+    const msg =
+      rollosAsociados.length > 0
+        ? `¿Estás seguro de eliminar el artículo "${tela.nombre}" (${tela.codigo})?\n\nEsto también eliminará sus ${rollosAsociados.length} rollo(s) registrado(s) en inventario.`
+        : `¿Estás seguro de eliminar el artículo "${tela.nombre}" (${tela.codigo}) del catálogo?`;
+
+    if (!window.confirm(msg)) return;
+    try {
+      inventoryStore.deleteTela(tela.id);
+      if (editingTela?.id === tela.id) {
+        setIsFormOpen(false);
+        setEditingTela(null);
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar tela');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -278,6 +298,13 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                         title="Editar parámetros del artículo"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTela(tela)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Eliminar artículo / tela"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                       {onOpenIngresoConTela && (
                         <button

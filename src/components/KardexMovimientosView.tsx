@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MovimientoCompleto, TipoMovimiento } from '../types/inventory';
+import { inventoryStore } from '../services/inventoryStore';
 import {
   FileText,
   ArrowDownLeft,
@@ -12,6 +13,7 @@ import {
   User,
   Building,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 
 interface KardexMovimientosViewProps {
@@ -42,6 +44,21 @@ export const KardexMovimientosView: React.FC<KardexMovimientosViewProps> = ({
 
   const toggleExpand = (id: string) => {
     setExpandedMovId((curr) => (curr === id ? null : id));
+  };
+
+  const handleDeleteMovimiento = (e: React.MouseEvent, mov: MovimientoCompleto) => {
+    e.stopPropagation();
+    const msg =
+      mov.tipo_movimiento === 'OUT'
+        ? `¿Estás seguro de eliminar el movimiento de salida (${mov.documento_referencia})?\n\nLos rollos despachados en este movimiento volverán a estado DISPONIBLE.`
+        : `¿Estás seguro de eliminar el registro de movimiento (${mov.documento_referencia}) del Kárdex?`;
+    if (!window.confirm(msg)) return;
+    try {
+      inventoryStore.deleteMovimiento(mov.id);
+      if (expandedMovId === mov.id) setExpandedMovId(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar movimiento');
+    }
   };
 
   return (
@@ -125,12 +142,13 @@ export const KardexMovimientosView: React.FC<KardexMovimientosViewProps> = ({
                 <th className="py-3 px-4 text-right">Rollos</th>
                 <th className="py-3 px-4 text-right">Metraje Total</th>
                 <th className="py-3 px-4">Responsable</th>
+                <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     No hay movimientos que coincidan con los filtros aplicados.
                   </td>
                 </tr>
@@ -200,12 +218,23 @@ export const KardexMovimientosView: React.FC<KardexMovimientosViewProps> = ({
                         <td className="py-3.5 px-4 text-slate-500 text-xs">
                           {mov.registrado_por}
                         </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteMovimiento(e, mov)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Eliminar registro de movimiento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
 
                       {/* Detalles desplegables del movimiento */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={8} className="bg-slate-50 p-0 border-y border-slate-200">
+                          <td colSpan={9} className="bg-slate-50 p-0 border-y border-slate-200">
                             <div className="p-5 space-y-3">
                               <div className="flex items-center justify-between text-xs text-slate-600">
                                 <div>

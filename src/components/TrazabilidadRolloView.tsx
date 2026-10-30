@@ -16,6 +16,7 @@ import {
   Palette,
   Layers,
   Ruler,
+  Trash2,
 } from 'lucide-react';
 
 interface TrazabilidadRolloViewProps {
@@ -37,6 +38,22 @@ export const TrazabilidadRolloView: React.FC<TrazabilidadRolloViewProps> = ({
 
   const handleSelectQuickRollo = (code: string) => {
     setSearchCode(code);
+  };
+
+  const handleDeleteRollo = (r: RolloConTela) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de eliminar el rollo físico ${r.codigo_rollo} (${r.tela_nombre} - ${r.metraje.toFixed(2)} m) del inventario?`
+      )
+    )
+      return;
+    try {
+      inventoryStore.deleteRollo(r.id);
+      const remaining = inventoryStore.getRollosConTela();
+      setSearchCode(remaining.length > 0 ? remaining[0].codigo_rollo : '');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar rollo');
+    }
   };
 
   return (
@@ -142,13 +159,23 @@ export const TrazabilidadRolloView: React.FC<TrazabilidadRolloViewProps> = ({
                   </span>
                 )}
 
-                <button
-                  onClick={() => onVerEtiqueta(rollo)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <Printer className="w-3.5 h-3.5 text-[#1a73e8]" />
-                  <span>Imprimir Etiqueta</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onVerEtiqueta(rollo)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#1a73e8]" />
+                    <span>Imprimir Etiqueta</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRollo(rollo)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                    title="Eliminar este rollo del inventario"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar</span>
+                  </button>
+                </div>
               </div>
             </div>
 

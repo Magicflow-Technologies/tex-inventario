@@ -123,7 +123,18 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
   };
 
   const handleRemoveRollo = (index: number) => {
-    if (rollos.length === 1) return;
+    if (rollos.length === 1) {
+      setRollos([
+        {
+          tela_id: defaultTela,
+          metraje: '50.00',
+          lote: `LOT-${currentYear}-A1`,
+          ubicacion: 'Estante A - Nivel 1',
+          codigo_rollo: generateCodigoRollo(inventoryStore.getNextRolloSequence()),
+        },
+      ]);
+      return;
+    }
     setRollos(rollos.filter((_, idx) => idx !== index));
   };
 
@@ -435,9 +446,8 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveRollo(index)}
-                          disabled={rollos.length === 1}
-                          className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
-                          title="Eliminar rollo"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title={rollos.length === 1 ? 'Limpiar fila' : 'Eliminar fila de rollo'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

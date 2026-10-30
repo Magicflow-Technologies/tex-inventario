@@ -400,6 +400,33 @@ class InventoryStore {
     }
   }
 
+  public async deleteUsuario(usuarioId: string): Promise<void> {
+    if (this.currentUser?.id === usuarioId) {
+      throw new Error('No puedes eliminar el usuario con el que tienes sesión activa.');
+    }
+    const idx = this.usuarios.findIndex((u) => u.id === usuarioId);
+    if (idx === -1) throw new Error('Usuario no encontrado');
+
+    await supabaseRest.remove('usuarios', `id=eq.${usuarioId}`);
+    this.usuarios.splice(idx, 1);
+    this.persist();
+  }
+
+  public async deletePerfil(perfilId: string): Promise<void> {
+    const enUso = this.usuarios.some((u) => u.perfil_id === perfilId);
+    if (enUso) {
+      throw new Error(
+        'No se puede eliminar este perfil porque tiene usuarios asignados. Reasigna o elimina primero esos usuarios.'
+      );
+    }
+    const idx = this.perfiles.findIndex((p) => p.id === perfilId);
+    if (idx === -1) throw new Error('Perfil no encontrado');
+
+    await supabaseRest.remove('perfiles', `id=eq.${perfilId}`);
+    this.perfiles.splice(idx, 1);
+    this.persist();
+  }
+
   private persist() {
     try {
       localStorage.setItem(STORAGE_KEYS.PERFILES, JSON.stringify(this.perfiles));
@@ -1101,6 +1128,124 @@ class InventoryStore {
 
       return newTela;
     }
+  }
+
+  public deleteTela(telaId: string): void {
+    const idx = this.telas.findIndex((t) => t.id === telaId);
+    if (idx === -1) throw new Error('Tela no encontrada');
+
+    const rollosDeTela = this.rollos.filter((r) => r.tela_id === telaId);
+    const rolloIds = new Set(rollosDeTela.map((r) => r.id));
+
+    this.pedidoDetalles = this.pedidoDetalles.filter((pd) => !rolloIds.has(pd.rollo_id));
+    this.detalles = this.detalles.filter((d) => !rolloIds.has(d.rollo_id));
+    this.rollos = this.rollos.filter((r) => r.tela_id !== telaId);
+    this.telas.splice(idx, 1);
+    this.persist();
+
+    void (async () => {
+      try {
+        for (const rId of rolloIds) {
+          await supabaseRest.remove('pedido_detalles', `rollo_id=eq.${rId}`);
+          await supabaseRest.remove('movimiento_detalles', `rollo_id=eq.${rId}`);
+        }
+        await supabaseRest.remove('rollos', `tela_id=eq.${telaId}`);
+        await supabaseRest.remove('telas', `id=eq.${telaId}`);
+      } catch (e) {
+        console.error('Error eliminando tela en Supabase:', e);
+      }
+    })();
+  }
+
+  public deleteRollo(rolloId: string): void {
+    const idx = this.rollos.findIndex((r) => r.id === rolloId);
+    if (idx === -1) throw new Error('Rollo no encontrado');
+
+    this.pedidoDetalles = this.pedidoDetalles.filter((pd) => pd.rollo_id !== rolloId);
+    this.detalles = this.detalles.filter((d) => d.rollo_id !== rolloId);
+    this.rollos.splice(idx, 1);
+    this.persist();
+
+    void (async () => {
+      try {
+        await supabaseRest.remove('pedido_detalles', `rollo_id=eq.${rolloId}`);
+        await supabaseRest.remove('movimiento_detalles', `rollo_id=eq.${rolloId}`);
+        await supabaseRest.remove('rollos', `id=eq.${rolloId}`);
+      } catch (e) {
+        console.error('Error eliminando rollo en Supabase:', e);
+      }
+    })();
+  }
+
+  public deletePedido(pedidoId: string): void {
+    const idx = this.pedidos.findIndex((p) => p.id === pedidoId);
+    if (idx === -1) throw new Error('Pedido no encontrado');
+
+    const itemsPedido = this.pedidoDetalles.filter((pd) => pd.pedido_id === pedidoId);
+    const rollosLiberadosIds: string[] = [];
+
+    itemsPedido.forEach((item) => {
+      const rollo = this.rollos.find((r) => r.id === item.rollo_id);
+      if (rollo && rollo.estado === 'RESERVADO') {
+        rollo.estado = 'DISPONIBLE';
+        rollosLiberadosIds.push(rollo.id);
+      }
+    });
+
+    this.pedidoDetalles = this.pedidoDetalles.filter((pd) => pd.pedido_id !== pedidoId);
+    this.pedidos.splice(idx, 1);
+    this.persist();
+
+    void (async () => {
+      try {
+        for (const rId of rollosLiberadosIds) {
+          await supabaseRest.update('rollos', `id=eq.${rId}`, { estado: 'DISPONIBLE' });
+        }
+        await supabaseRest.remove('pedido_detalles', `pedido_id=eq.${pedidoId}`);
+        await supabaseRest.remove('pedidos', `id=eq.${pedidoId}`);
+      } catch (e) {
+        console.error('Error eliminando pedido en Supabase:', e);
+      }
+    })();
+  }
+
+  public deleteMovimiento(movimientoId: string): void {
+    const idx = this.movimientos.findIndex((m) => m.id === movimientoId);
+    if (idx === -1) throw new Error('Movimiento no encontrado');
+
+    const mov = this.movimientos[idx];
+    const dets = this.detalles.filter((d) => d.movimiento_id === movimientoId);
+    const rollosRestauradosIds: string[] = [];
+
+    if (mov.tipo_movimiento === 'OUT') {
+      dets.forEach((d) => {
+        const rollo = this.rollos.find((r) => r.id === d.rollo_id);
+        if (rollo && (rollo.estado === 'VENDIDO' || rollo.estado === 'MERMA')) {
+          rollo.estado = 'DISPONIBLE';
+          rollo.fecha_salida = null;
+          rollosRestauradosIds.push(rollo.id);
+        }
+      });
+    }
+
+    this.detalles = this.detalles.filter((d) => d.movimiento_id !== movimientoId);
+    this.movimientos.splice(idx, 1);
+    this.persist();
+
+    void (async () => {
+      try {
+        for (const rId of rollosRestauradosIds) {
+          await supabaseRest.update('rollos', `id=eq.${rId}`, {
+            estado: 'DISPONIBLE',
+            fecha_salida: null,
+          });
+        }
+        await supabaseRest.remove('movimiento_detalles', `movimiento_id=eq.${movimientoId}`);
+        await supabaseRest.remove('movimientos_inventario', `id=eq.${movimientoId}`);
+      } catch (e) {
+        console.error('Error eliminando movimiento en Supabase:', e);
+      }
+    })();
   }
 
   public getRollos(): Rollo[] {

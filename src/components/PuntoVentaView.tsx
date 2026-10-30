@@ -136,6 +136,26 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     setCart((prev) => prev.filter((item) => item.rollo.id !== rolloId));
   };
 
+  const handleClearCart = () => {
+    if (cart.length === 0) return;
+    setCart([]);
+  };
+
+  const handleDeleteRolloFromStock = (rollo: RolloConTela) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de eliminar del inventario el rollo ${rollo.codigo_rollo} (${rollo.tela_nombre} - ${rollo.metraje.toFixed(2)} m)?`
+      )
+    )
+      return;
+    try {
+      inventoryStore.deleteRollo(rollo.id);
+      setCart((prev) => prev.filter((item) => item.rollo.id !== rollo.id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar rollo');
+    }
+  };
+
   const handleUpdatePrice = (rolloId: string, precio: number) => {
     setCart((prev) =>
       prev.map((item) =>
@@ -394,13 +414,23 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                             <div className="text-slate-400 font-mono">{rollo.lote}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right font-sans">
-                            <button
-                              type="button"
-                              onClick={() => handleAddToCart(rollo)}
-                              className="px-3 py-1.5 text-xs bg-[#1a73e8] hover:bg-[#1557b0] text-white font-semibold rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs active:scale-98"
-                            >
-                              + Seleccionar
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleAddToCart(rollo)}
+                                className="px-3 py-1.5 text-xs bg-[#1a73e8] hover:bg-[#1557b0] text-white font-semibold rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs active:scale-98 cursor-pointer"
+                              >
+                                + Seleccionar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRolloFromStock(rollo)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Eliminar rollo del inventario"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -494,9 +524,22 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               <div className="space-y-2 pt-2 border-t border-slate-100">
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
                   <span>Rollos en el Pedido:</span>
-                  <span className="font-mono text-slate-500">
-                    {totalMetrosPedido.toFixed(2)} m total
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-slate-500">
+                      {totalMetrosPedido.toFixed(2)} m total
+                    </span>
+                    {cart.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearCart}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                        title="Quitar todos los rollos seleccionados"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Vaciar</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
@@ -527,10 +570,11 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveFromCart(item.rollo.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                              title="Quitar rollo"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                              title="Quitar rollo del pedido"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
+                              <span>Quitar</span>
                             </button>
                           </div>
 

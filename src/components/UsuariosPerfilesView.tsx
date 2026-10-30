@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  Trash2,
 } from 'lucide-react';
 
 interface UsuariosPerfilesViewProps {
@@ -180,6 +181,36 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
     }
   };
 
+  const handleDeleteUser = async (u: UsuarioConPerfil) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de eliminar al usuario "${u.nombre_completo}" (@${u.usuario}) de ochotex_bd.usuarios?`
+      )
+    )
+      return;
+    try {
+      await inventoryStore.deleteUsuario(u.id);
+      onNotify('Usuario Eliminado', `El usuario @${u.usuario} fue eliminado de ochotex_bd.usuarios.`);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar usuario');
+    }
+  };
+
+  const handleDeletePerfil = async (p: Perfil) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de eliminar el perfil "${p.nombre}" (${p.codigo}) de ochotex_bd.perfiles?`
+      )
+    )
+      return;
+    try {
+      await inventoryStore.deletePerfil(p.id);
+      onNotify('Perfil Eliminado', `El perfil ${p.nombre} fue eliminado de ochotex_bd.perfiles.`);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar perfil');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -314,13 +345,22 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => handleOpenEditUser(u)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        <span>Editar</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleOpenEditUser(u)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Editar</span>
+                        </button>
+                        <button
+                          onClick={() => void handleDeleteUser(u)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Eliminar usuario"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -346,13 +386,22 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
                     </span>
                     <h3 className="text-base font-bold text-slate-900 mt-1.5">{p.nombre}</h3>
                   </div>
-                  <button
-                    onClick={() => handleOpenEditPerfil(p)}
-                    className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                    title="Editar perfil"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditPerfil(p)}
+                      className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                      title="Editar perfil"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => void handleDeletePerfil(p)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                      title="Eliminar perfil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-600">{p.descripcion}</p>
