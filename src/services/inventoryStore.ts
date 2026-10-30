@@ -215,7 +215,7 @@ class InventoryStore {
       );
 
       if (!matched) {
-        throw new Error('Credenciales inválidas. Verifique su usuario y contraseña en ochotex_bd.usuarios.');
+        throw new Error('Usuario o contraseña incorrecto');
       }
 
       if (!matched.activo) {
@@ -246,7 +246,12 @@ class InventoryStore {
       await this.syncFromSupabase();
       return userConPerfil;
     } catch (err) {
-      if (err instanceof Error && (err.message.includes('Credenciales') || err.message.includes('desactivada') || err.message.includes('perfil'))) {
+      if (
+        err instanceof Error &&
+        (err.message.includes('incorrecto') ||
+          err.message.includes('desactivada') ||
+          err.message.includes('perfil'))
+      ) {
         throw err;
       }
       // Fallback local si hay corte momentáneo de red
@@ -256,7 +261,7 @@ class InventoryStore {
           u.password === cleanPass
       );
       if (!localUser) {
-        throw new Error('Credenciales inválidas. Verifique su usuario y contraseña.');
+        throw new Error('Usuario o contraseña incorrecto');
       }
       if (!localUser.activo) {
         throw new Error(`El usuario "${localUser.usuario}" está inactivo.`);
