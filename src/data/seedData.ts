@@ -48,7 +48,7 @@ export const SEED_USUARIOS: Usuario[] = [
     id: '22222222-1111-4000-8000-000000000001',
     perfil_id: '11111111-1111-4000-8000-000000000001',
     usuario: 'admin',
-    password: 'Ochotex$Admin2026!',
+    password: '8Tex2026',
     nombre_completo: 'Administrador General',
     correo: 'admin@8tex.pe',
     telefono: '998 112 233',

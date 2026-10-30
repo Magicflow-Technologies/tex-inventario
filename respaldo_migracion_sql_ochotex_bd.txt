@@ -177,7 +177,7 @@ INSERT INTO ochotex_bd.usuarios (id, perfil_id, usuario, password, nombre_comple
   ('22222222-2222-4000-8000-000000000002', '11111111-2222-4000-8000-000000000002', 'almacen', 'Ochotex$Alm2026!', 'Jefa de Almacen', 'almacen@8tex.pe', '987 445 566', 'Jefa de Almacen Central', true, NULL, '2026-10-29T20:16:02.169181+00:00', '2026-10-29T20:16:02.169181+00:00'),
   ('22222222-3333-4000-8000-000000000003', '11111111-3333-4000-8000-000000000003', 'ventas', 'Ochotex$Pos2026!', 'Ventas', 'ventas@8tex.pe', '991 223 344', 'Ejecutivo Comercial Senior', true, NULL, '2026-10-29T20:16:02.169181+00:00', '2026-10-29T20:16:02.169181+00:00'),
   ('22222222-4444-4000-8000-000000000004', '11111111-4444-4000-8000-000000000004', 'facturacion', 'Ochotex$Sunat2026!', 'Facturacion', 'facturacion@8tex.pe', '994 887 766', 'Encargada de Facturacion SUNAT', true, NULL, '2026-10-29T20:16:02.169181+00:00', '2026-10-29T20:16:02.169181+00:00'),
-  ('22222222-1111-4000-8000-000000000001', '11111111-1111-4000-8000-000000000001', 'admin', 'Ochotex$Admin2026!', 'Administrador General', 'admin@8tex.pe', '998 112 233', 'Gerente de Operaciones & Sistemas', true, '2026-10-29T23:08:18.375+00:00', '2026-10-29T20:16:02.169181+00:00', '2026-10-29T23:08:18.375+00:00')
+  ('22222222-1111-4000-8000-000000000001', '11111111-1111-4000-8000-000000000001', 'admin', '8Tex2026', 'Administrador General', 'admin@8tex.pe', '998 112 233', 'Gerente de Operaciones & Sistemas', true, '2026-10-29T23:08:18.375+00:00', '2026-10-29T20:16:02.169181+00:00', '2026-10-29T23:08:18.375+00:00')
 ON CONFLICT (id) DO NOTHING;
 
 -- Inserción de Telas / Artículos (6 registros)
