@@ -28,15 +28,15 @@ import { generateUUID, generateCodigoRollo } from '../utils/uuid';
 import { supabaseRest } from './supabaseClient';
 
 const STORAGE_KEYS = {
-  PERFILES: '8tex_inv_perfiles_v1',
-  USUARIOS: '8tex_inv_usuarios_v1',
-  TELAS: '8tex_inv_telas_v1',
-  ROLLOS: '8tex_inv_rollos_v1',
-  MOVIMIENTOS: '8tex_inv_movimientos_v1',
-  DETALLES: '8tex_inv_detalles_v1',
-  PEDIDOS: '8tex_inv_pedidos_v1',
-  PEDIDO_DETALLES: '8tex_inv_pedido_detalles_v1',
-  SESSION: '8tex_auth_session_v1',
+  PERFILES: '8tex_inv_perfiles_v2',
+  USUARIOS: '8tex_inv_usuarios_v2',
+  TELAS: '8tex_inv_telas_v2',
+  ROLLOS: '8tex_inv_rollos_v2',
+  MOVIMIENTOS: '8tex_inv_movimientos_v2',
+  DETALLES: '8tex_inv_detalles_v2',
+  PEDIDOS: '8tex_inv_pedidos_v2',
+  PEDIDO_DETALLES: '8tex_inv_pedido_detalles_v2',
+  SESSION: '8tex_auth_session_v2',
 };
 
 class InventoryStore {
