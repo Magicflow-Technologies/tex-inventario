@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #etiqueta-imprimible,
+  #etiqueta-imprimible *,
+  #pedido-imprimible,
+  #pedido-imprimible * {
+    visibility: visible;
+  }
+  #etiqueta-imprimible,
+  #pedido-imprimible {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

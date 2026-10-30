@@ -1,0 +1,7 @@
+{
+  "name": "Textiles Ocho Lukal (8tex) - Módulo de Inventario",
+  "description": "Control físico de inventario por rollos individuales (trazabilidad rollo a rollo), registro ágil de ingresos y salidas, y consulta de stock en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
