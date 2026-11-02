@@ -31,23 +31,19 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTela, setEditingTela] = useState<Tela | null>(null);
 
-  // Form states solicitados exactamente por el usuario:
-  // 1. Codigo de articulo: (permite numero y letras)
+  // Form states del Catálogo Maestro de Telas:
+  // 1. Código de artículo: (permite número y letras, repetible para distintos códigos de color)
   const [codigoArticulo, setCodigoArticulo] = useState('');
-  // 2. codigo Color: (permite numero)
+  // 2. Código Color: (permite número)
   const [codigoColor, setCodigoColor] = useState('');
-  // Nombre descriptivo
+  // Nombre descriptivo y color
   const [nombre, setNombre] = useState('');
   const [colorNombre, setColorNombre] = useState('');
-  // 3. Metraje: (unidad de medida metros)
-  const [metraje, setMetraje] = useState('50.00');
-  // 4. Linea: (texto)
+  // 3. Línea: (texto)
   const [linea, setLinea] = useState('');
-  // 5. Lote: (numero y letras)
-  const [lote, setLote] = useState('');
-  // 6. Ancho: (unidad de medida metros)
+  // 4. Ancho: (unidad de medida metros)
   const [ancho, setAncho] = useState('1.50');
-  // 7. Fecha: (de registro automatico)
+  // 5. Fecha: (de registro automático)
   const [fechaRegistroDisplay, setFechaRegistroDisplay] = useState('');
 
   const [stockMinimo, setStockMinimo] = useState('100.00');
@@ -61,20 +57,17 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       t.codigo.toLowerCase().includes(q) ||
       (t.codigo_color && t.codigo_color.toLowerCase().includes(q)) ||
       (t.color && t.color.toLowerCase().includes(q)) ||
-      (t.linea && t.linea.toLowerCase().includes(q)) ||
-      (t.lote && t.lote.toLowerCase().includes(q))
+      (t.linea && t.linea.toLowerCase().includes(q))
     );
   });
 
   const handleOpenCreate = () => {
     setEditingTela(null);
-    setCodigoArticulo(`ART-${Math.random().toString(36).substring(2, 6).toUpperCase()}-01`);
-    setCodigoColor(String(Math.floor(100 + Math.random() * 900)));
+    setCodigoArticulo('');
+    setCodigoColor('');
     setNombre('');
     setColorNombre('');
-    setMetraje('50.00');
     setLinea('Sastrería Formal');
-    setLote(`LOT-${new Date().getFullYear()}-01`);
     setAncho('1.50');
     setFechaRegistroDisplay(new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' }));
     setStockMinimo('100.00');
@@ -89,9 +82,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     setCodigoColor(tela.codigo_color || '');
     setNombre(tela.nombre);
     setColorNombre(tela.color);
-    setMetraje(String(tela.metraje_estandar || 50.0));
     setLinea(tela.linea || '');
-    setLote(tela.lote || '');
     setAncho(String(tela.ancho || 1.5));
     setFechaRegistroDisplay(
       new Date(tela.created_at).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -112,26 +103,37 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     e.preventDefault();
     setFormError(null);
 
-    // Validación Código de artículo (permite letras y números)
-    if (!codigoArticulo.trim()) {
+    const cleanCodigo = codigoArticulo.trim().toUpperCase();
+    const cleanColorCode = codigoColor.trim();
+
+    // Validación Código de artículo (permite letras y números, repetible con distinto código de color)
+    if (!cleanCodigo) {
       setFormError('El Código de Artículo es obligatorio (permite números y letras).');
       return;
     }
 
     // Validación Código de color (permite número)
-    if (!codigoColor.trim()) {
+    if (!cleanColorCode) {
       setFormError('El Código de Color es obligatorio (permite únicamente números).');
+      return;
+    }
+
+    // Validar conflicto únicamente si coinciden tanto codigo_articulo como codigo_color
+    const existeCombinacion = telas.some(
+      (t) =>
+        t.id !== editingTela?.id &&
+        t.codigo.trim().toUpperCase() === cleanCodigo &&
+        String(t.codigo_color || '').trim() === cleanColorCode
+    );
+    if (existeCombinacion) {
+      setFormError(
+        `Ya existe el artículo "${cleanCodigo}" registrado con el Código de Color "${cleanColorCode}". Cambie el código de color para registrar una nueva variante.`
+      );
       return;
     }
 
     if (!nombre.trim()) {
       setFormError('El Nombre comercial de la tela es obligatorio.');
-      return;
-    }
-
-    const metrajeNum = parseFloat(metraje);
-    if (isNaN(metrajeNum) || metrajeNum <= 0) {
-      setFormError('El Metraje debe ser un número válido mayor a 0 (unidad de medida: metros).');
       return;
     }
 
@@ -144,14 +146,12 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     try {
       inventoryStore.saveTela({
         id: editingTela ? editingTela.id : undefined,
-        codigo: codigoArticulo.trim().toUpperCase(),
-        codigo_color: codigoColor.trim(),
+        codigo: cleanCodigo,
+        codigo_color: cleanColorCode,
         nombre: nombre.trim(),
-        color: colorNombre.trim() || `Color ${codigoColor}`,
+        color: colorNombre.trim() || `Color ${cleanColorCode}`,
         linea: linea.trim() || 'Línea General',
-        lote: lote.trim().toUpperCase() || `LOT-${new Date().getFullYear()}`,
         ancho: anchoNum,
-        metraje_estandar: metrajeNum,
         unidad_medida: 'METROS',
         stock_minimo_alerta: parseFloat(stockMinimo) || 0,
         activo,
@@ -197,7 +197,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
             Catálogo Maestro de Telas y Artículos
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Registro con campos específicos: Código de Artículo (alfanumérico), Código Color (numérico), Metraje (m), Línea (texto), Lote (alfanumérico), Ancho (m) y Fecha de registro automático.
+            Registro maestro por variante de color: un mismo Código de Artículo (ej. C-900) puede registrarse múltiples veces con diferentes Códigos de Color. El metraje exacto y lote se asignan por rollo físico al ingresar mercadería.
           </p>
         </div>
 
@@ -218,7 +218,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por código de artículo, color, línea, lote o nombre..."
+            placeholder="Buscar por código de artículo, código de color, color, línea o nombre..."
             className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 shadow-sm transition-all"
           />
         </div>
@@ -238,8 +238,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 <th className="py-3 px-3">Nombre / Descripción</th>
                 <th className="py-3 px-3">Línea</th>
                 <th className="py-3 px-3 text-right">Ancho (m)</th>
-                <th className="py-3 px-3 text-right">Metraje Ref.</th>
-                <th className="py-3 px-3">Lote</th>
+                <th className="py-3 px-3 text-right">Stock Mín. (m)</th>
                 <th className="py-3 px-3">Fecha Registro</th>
                 <th className="py-3 px-3 text-center">Estado</th>
                 <th className="py-3 px-3 text-right">Acciones</th>
@@ -264,11 +263,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                   <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
                     {(Number(tela.ancho) || 1.5).toFixed(2)} m
                   </td>
-                  <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
-                    {(Number(tela.metraje_estandar) || 50.0).toFixed(2)} m
-                  </td>
-                  <td className="py-3.5 px-3 font-mono text-slate-700">
-                    {tela.lote || 'N/A'}
+                  <td className="py-3.5 px-3 text-right font-mono text-slate-700 tabular-nums">
+                    {(Number(tela.stock_minimo_alerta) || 0).toFixed(2)} m
                   </td>
                   <td className="py-3.5 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                     {new Date(tela.created_at).toLocaleDateString('es-PE', {
@@ -338,7 +334,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     {editingTela ? 'Editar Tela / Artículo' : 'Registro de Nueva Tela'}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Parámetros exactos requeridos para el control de inventario de Textiles Ocho Lukal.
+                    Puedes usar el mismo Código de Artículo con diferentes Códigos de Color.
                   </p>
                 </div>
               </div>
@@ -367,7 +363,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     type="text"
                     value={codigoArticulo}
                     onChange={(e) => setCodigoArticulo(e.target.value.toUpperCase())}
-                    placeholder="Ej. ART-TIZZ-001 o ART102"
+                    placeholder="Ej. C-900 o ART-TIZZ-001"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-[#1a73e8] font-bold focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
                     required
                   />
@@ -399,7 +395,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     type="text"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Ej. Casimir Tizziano Super 120s"
+                    placeholder="Ej. Casimir M 8tex"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
                     required
                   />
@@ -419,7 +415,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 </div>
               </div>
 
-              {/* Grupo 3: Línea y Lote */}
+              {/* Grupo 3: Línea y Ancho (en metros) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
@@ -433,45 +429,6 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
                     required
                   />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Lote * <span className="font-normal text-slate-500">(números y letras)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={lote}
-                    onChange={(e) => setLote(e.target.value.toUpperCase())}
-                    placeholder="Ej. LOT-2026-A1 o DUA-118"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 font-mono text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Grupo 4: Metraje y Ancho (ambos en unidad de medida metros) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Metraje Estándar *</span>
-                    <span className="text-[#1a73e8] font-mono text-[11px]">(unidad: metros)</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.1"
-                      value={metraje}
-                      onChange={(e) => setMetraje(e.target.value)}
-                      placeholder="50.00"
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                      required
-                    />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold">
-                      m
-                    </span>
-                  </div>
                 </div>
 
                 <div>
@@ -497,7 +454,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 </div>
               </div>
 
-              {/* Grupo 5: Fecha de Registro Automático & Stock Mínimo */}
+              {/* Grupo 4: Fecha de Registro Automático & Stock Mínimo */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">

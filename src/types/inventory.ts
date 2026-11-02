@@ -58,31 +58,38 @@ export interface UsuarioConPerfil extends Usuario {
   perfil: Perfil;
 }
 
-/** 1. TABLA: telas (Catálogo Maestro) */
+/** 1. TABLA: telas (Catálogo Maestro)
+ * Nota de negocio: Un mismo código de artículo (`codigo`, ej. "C-900") puede registrarse
+ * múltiples veces para distintas variantes de `codigo_color` (unicidad compuesta: codigo + codigo_color).
+ * El `metraje` y `lote` pertenecen exclusivamente a cada unidad física en la tabla `rollos`.
+ */
 export interface Tela {
   id: string; // UUIDv4
-  codigo: string; // Código de artículo: permite números y letras (ej. ART-TIZZ-001)
+  codigo: string; // Código de artículo: permite números y letras (ej. C-900, ART-TIZZ-001)
   nombre: string; // Nombre comercial del artículo (ej. Casimir Tizziano Super 120s)
   codigo_color: string; // Código Color: permite número (ej. "2004")
   color: string; // Descripción del color (ej. "Azul Marino")
   linea: string; // Línea: texto (ej. "Sastrería Formal", "Industrial", "Camisería")
-  lote: string; // Lote: permite números y letras (ej. "LOT-2026-A1")
   ancho: number; // Ancho: unidad de medida metros (ej. 1.50)
-  metraje_estandar: number; // Metraje: unidad de medida metros (ej. 50.00)
   unidad_medida: UnidadMedida; // 'METROS'
   stock_minimo_alerta: number;
   activo: boolean;
   created_at: string; // Fecha de registro automático
   updated_at: string;
+  // Campos opcionales solo por retrocompatibilidad de lectura histórica
+  lote?: string | null;
+  metraje_estandar?: number | null;
 }
 
-/** 2. TABLA: rollos (Unidades Físicas de Inventario) */
+/** 2. TABLA: rollos (Unidades Físicas de Inventario)
+ * Cada rollo físico posee su propio metraje exacto y su propio lote / DUA.
+ */
 export interface Rollo {
   id: string; // UUIDv4
   tela_id: string; // UUID FK -> telas(id)
   codigo_rollo: string; // Código de barra / QR (ej. ROL-2026-00012)
-  metraje: number; // Metros exactos del rollo
-  lote: string; // Lote del proveedor / DUA
+  metraje: number; // Metros exactos del rollo físico
+  lote: string; // Lote del proveedor / DUA propio de este rollo
   ubicacion: string; // Ej. Estante B - Nivel 2
   estado: EstadoRollo;
   fecha_ingreso: string; // TIMESTAMPTZ

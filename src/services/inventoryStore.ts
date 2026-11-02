@@ -126,7 +126,6 @@ class InventoryStore {
       this.telas = telas.map((t) => ({
         ...t,
         ancho: Number(t.ancho) || 1.5,
-        metraje_estandar: Number(t.metraje_estandar) || 50,
         stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
       }));
       this.rollos = rollos.map((r) => ({
@@ -1080,44 +1079,68 @@ class InventoryStore {
 
   public saveTela(telaData: Partial<Tela> & { nombre: string; codigo: string }): Tela {
     const now = new Date().toISOString();
+    const cleanCodigo = telaData.codigo.trim().toUpperCase();
+    const cleanCodigoColor = String(telaData.codigo_color ?? '').trim();
+
+    // Validar unicidad compuesta: solo bloquear si coinciden tanto (codigo) como (codigo_color)
+    const duplicado = this.telas.some(
+      (t) =>
+        t.id !== telaData.id &&
+        t.codigo.trim().toUpperCase() === cleanCodigo &&
+        String(t.codigo_color ?? '').trim().toUpperCase() === cleanCodigoColor.toUpperCase()
+    );
+    if (duplicado) {
+      throw new Error(
+        `El artículo "${cleanCodigo}" con el Código de Color "${cleanCodigoColor || 'S/N'}" ya se encuentra registrado en el catálogo.`
+      );
+    }
+
     if (telaData.id) {
       const idx = this.telas.findIndex((t) => t.id === telaData.id);
       if (idx === -1) throw new Error('Tela no encontrada');
       const updated: Tela = {
         ...this.telas[idx],
-        ...telaData,
-        codigo_color: String(telaData.codigo_color ?? this.telas[idx].codigo_color ?? '').trim(),
+        codigo: cleanCodigo,
+        nombre: telaData.nombre.trim(),
+        codigo_color: cleanCodigoColor,
+        color: telaData.color?.trim() ?? this.telas[idx].color ?? 'Estándar',
         linea: telaData.linea?.trim() ?? this.telas[idx].linea ?? 'General',
-        lote: telaData.lote?.trim() ?? this.telas[idx].lote ?? 'LOT-2026-STD',
         ancho: Number(telaData.ancho ?? this.telas[idx].ancho ?? 1.5),
-        metraje_estandar: Number(telaData.metraje_estandar ?? this.telas[idx].metraje_estandar ?? 50),
+        unidad_medida: telaData.unidad_medida ?? this.telas[idx].unidad_medida ?? 'METROS',
+        stock_minimo_alerta: Number(telaData.stock_minimo_alerta ?? this.telas[idx].stock_minimo_alerta ?? 0),
+        activo: telaData.activo ?? this.telas[idx].activo ?? true,
         updated_at: now,
       };
       this.telas[idx] = updated;
       this.persist();
 
-      void supabaseRest.update('telas', `id=eq.${updated.id}`, updated).catch((e) =>
+      const supabaseUpdatePayload = {
+        codigo: updated.codigo,
+        codigo_color: updated.codigo_color,
+        nombre: updated.nombre,
+        color: updated.color,
+        linea: updated.linea,
+        ancho: updated.ancho,
+        unidad_medida: updated.unidad_medida,
+        stock_minimo_alerta: updated.stock_minimo_alerta,
+        activo: updated.activo,
+        updated_at: updated.updated_at,
+      };
+
+      void supabaseRest.update('telas', `id=eq.${updated.id}`, supabaseUpdatePayload).catch((e) =>
         console.error('Error actualizando tela en Supabase:', e)
       );
 
       return updated;
     } else {
-      const existe = this.telas.some(
-        (t) => t.codigo.toUpperCase() === telaData.codigo.trim().toUpperCase()
-      );
-      if (existe) {
-        throw new Error(`El código de artículo ${telaData.codigo} ya está en uso.`);
-      }
       const newTela: Tela = {
         id: generateUUID(),
-        codigo: telaData.codigo.trim().toUpperCase(),
+        codigo: cleanCodigo,
         nombre: telaData.nombre.trim(),
-        codigo_color: String(telaData.codigo_color || '').trim(),
+        codigo_color: cleanCodigoColor,
         color: telaData.color?.trim() || 'Estándar',
         linea: telaData.linea?.trim() || 'Línea General',
-        lote: telaData.lote?.trim() || 'LOT-2026-STD',
         ancho: Number(telaData.ancho) || 1.5,
-        metraje_estandar: Number(telaData.metraje_estandar) || 50.0,
         unidad_medida: 'METROS',
         stock_minimo_alerta: Number(telaData.stock_minimo_alerta) || 0,
         activo: telaData.activo ?? true,
@@ -1127,7 +1150,22 @@ class InventoryStore {
       this.telas.push(newTela);
       this.persist();
 
-      void supabaseRest.insert('telas', newTela).catch((e) =>
+      const supabaseInsertPayload = {
+        id: newTela.id,
+        codigo: newTela.codigo,
+        codigo_color: newTela.codigo_color,
+        nombre: newTela.nombre,
+        color: newTela.color,
+        linea: newTela.linea,
+        ancho: newTela.ancho,
+        unidad_medida: newTela.unidad_medida,
+        stock_minimo_alerta: newTela.stock_minimo_alerta,
+        activo: newTela.activo,
+        created_at: newTela.created_at,
+        updated_at: newTela.updated_at,
+      };
+
+      void supabaseRest.insert('telas', supabaseInsertPayload).catch((e) =>
         console.error('Error insertando tela en Supabase:', e)
       );
 

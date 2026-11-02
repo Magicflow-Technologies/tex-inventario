@@ -70,7 +70,6 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
     if (isOpen) {
       const seq = inventoryStore.getNextRolloSequence();
       const targetTelaId = initialTelaId || (telas.length > 0 ? telas[0].id : '');
-      const selTela = telas.find((t) => t.id === targetTelaId);
       setMotivo('COMPRA_LOCAL');
       setDocumentoReferencia('');
       setEntidadOrigenDestino('');
@@ -80,8 +79,8 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
       setRollos([
         {
           tela_id: targetTelaId,
-          metraje: selTela?.metraje_estandar ? String(selTela.metraje_estandar.toFixed(2)) : '50.00',
-          lote: selTela?.lote || `LOT-${currentYear}-A1`,
+          metraje: '50.00',
+          lote: `LOT-${currentYear}-A1`,
           ubicacion: 'Estante A - Nivel 1',
           codigo_rollo: generateCodigoRollo(seq),
         },
@@ -161,12 +160,16 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
       return;
     }
 
-    // Validar rollos
+    // Validar rollos individuales (metraje exacto y lote propios de cada unidad física)
     for (let i = 0; i < rollos.length; i++) {
       const r = rollos[i];
       const m = parseFloat(r.metraje);
       if (isNaN(m) || m <= 0) {
-        setErrorMsg(`El rollo #${i + 1} tiene un metraje inválido.`);
+        setErrorMsg(`El rollo #${i + 1} tiene un metraje inválido (debe ser mayor a 0 metros).`);
+        return;
+      }
+      if (!r.lote || !r.lote.trim()) {
+        setErrorMsg(`Ingrese el Lote / DUA para el rollo #${i + 1}.`);
         return;
       }
       if (!r.tela_id) {
@@ -358,7 +361,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     <th className="py-2.5 px-3">Código de Rollo</th>
                     <th className="py-2.5 px-3">Tela / Color</th>
                     <th className="py-2.5 px-3 w-32 text-right">Metros *</th>
-                    <th className="py-2.5 px-3">Lote / DUA</th>
+                    <th className="py-2.5 px-3">Lote / DUA *</th>
                     <th className="py-2.5 px-3">Ubicación Almacén</th>
                     <th className="py-2.5 px-3 text-center w-12"></th>
                   </tr>
@@ -384,23 +387,12 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                       <td className="py-2 px-3">
                         <select
                           value={rollo.tela_id}
-                          onChange={(e) => {
-                            const newTelaId = e.target.value;
-                            const selTela = telas.find((t) => t.id === newTelaId);
-                            const updated = [...rollos];
-                            updated[index] = {
-                              ...updated[index],
-                              tela_id: newTelaId,
-                              lote: selTela?.lote || updated[index].lote,
-                              metraje: selTela?.metraje_estandar ? String(selTela.metraje_estandar) : updated[index].metraje,
-                            };
-                            setRollos(updated);
-                          }}
+                          onChange={(e) => handleUpdateRollo(index, 'tela_id', e.target.value)}
                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
                         >
                           {telas.map((t) => (
                             <option key={t.id} value={t.id}>
-                              {t.codigo} · {t.nombre} - Cód. Color {t.codigo_color || 'S/N'} ({t.linea || 'General'} - Ancho: {t.ancho || 1.5}m)
+                              {t.codigo} · {t.nombre} - Cód. Color {t.codigo_color || 'S/N'} ({t.color || 'Estándar'} · {t.linea || 'General'} - Ancho: {t.ancho || 1.5}m)
                             </option>
                           ))}
                         </select>
@@ -426,9 +418,10 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                         <input
                           type="text"
                           value={rollo.lote}
-                          onChange={(e) => handleUpdateRollo(index, 'lote', e.target.value)}
+                          onChange={(e) => handleUpdateRollo(index, 'lote', e.target.value.toUpperCase())}
                           className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                          placeholder="Lote o DUA"
+                          placeholder="Ej. LOT-2026-A1 / DUA"
+                          required
                         />
                       </td>
 

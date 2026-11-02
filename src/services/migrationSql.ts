@@ -65,29 +65,49 @@ CREATE TABLE IF NOT EXISTS ochotex_bd.usuarios (
 );
 
 -- 3. SISTEMA DE INVENTARIO FÍSICO Y POS
+-- Catálogo maestro de telas: permite repetir 'codigo' con diferente 'codigo_color'
 CREATE TABLE IF NOT EXISTS ochotex_bd.telas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo VARCHAR(50) UNIQUE NOT NULL,
-    codigo_color VARCHAR(30),
+    codigo VARCHAR(50) NOT NULL,
+    codigo_color VARCHAR(30) NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     color VARCHAR(80),
     linea VARCHAR(100),
-    lote VARCHAR(60),
     ancho NUMERIC(5, 2) DEFAULT 1.50,
-    metraje_estandar NUMERIC(10, 2) DEFAULT 50.00,
     unidad_medida VARCHAR(20) DEFAULT 'METROS',
     stock_minimo_alerta NUMERIC(10, 2) DEFAULT 0.00,
     activo BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT telas_codigo_color_unique UNIQUE (codigo, codigo_color)
 );
 
+-- Migración idempotente para bases existentes:
+-- 1) Eliminar restricción UNIQUE individual sobre 'codigo' (telas_codigo_key)
+-- 2) Asegurar restricción compuesta UNIQUE (codigo, codigo_color)
+-- 3) Hacer opcionales/eliminar campos de rollo en la tabla maestra 'telas'
+DO $$ BEGIN
+    ALTER TABLE ochotex_bd.telas DROP CONSTRAINT IF EXISTS telas_codigo_key;
+    ALTER TABLE ochotex_bd.telas ALTER COLUMN lote DROP NOT NULL;
+    ALTER TABLE ochotex_bd.telas ALTER COLUMN metraje_estandar DROP NOT NULL;
+EXCEPTION
+    WHEN undefined_column OR undefined_table THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE ochotex_bd.telas
+        ADD CONSTRAINT telas_codigo_color_unique UNIQUE (codigo, codigo_color);
+EXCEPTION
+    WHEN duplicate_table OR duplicate_object THEN null;
+END $$;
+
+-- Unidades físicas individuales: 'metraje' y 'lote' son propios de cada rollo
 CREATE TABLE IF NOT EXISTS ochotex_bd.rollos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tela_id UUID NOT NULL REFERENCES ochotex_bd.telas(id) ON DELETE RESTRICT,
     codigo_rollo VARCHAR(60) UNIQUE NOT NULL,
     metraje NUMERIC(10, 2) NOT NULL,
-    lote VARCHAR(60),
+    lote VARCHAR(60) NOT NULL DEFAULT 'S/L',
     ubicacion VARCHAR(100),
     estado ochotex_bd.estado_rollo_enum DEFAULT 'DISPONIBLE' NOT NULL,
     fecha_ingreso TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -189,22 +209,20 @@ BEGIN;
 
   let telasInserts = `-- Inserción de Telas / Artículos (${telas.length} registros)\n`;
   if (telas.length > 0) {
-    telasInserts += `INSERT INTO ochotex_bd.telas (id, codigo, codigo_color, nombre, color, linea, lote, ancho, metraje_estandar, unidad_medida, stock_minimo_alerta, activo, created_at, updated_at) VALUES\n`;
+    telasInserts += `INSERT INTO ochotex_bd.telas (id, codigo, codigo_color, nombre, color, linea, ancho, unidad_medida, stock_minimo_alerta, activo, created_at, updated_at) VALUES\n`;
     telasInserts += telas
       .map(
         (t) =>
           `  (${escapeSql(t.id)}, ${escapeSql(t.codigo)}, ${escapeSql(t.codigo_color)}, ${escapeSql(
             t.nombre
-          )}, ${escapeSql(t.color)}, ${escapeSql(t.linea || 'General')}, ${escapeSql(
-            t.lote || 'LOT-STD'
-          )}, ${Number(t.ancho) || 1.5}, ${Number(t.metraje_estandar) || 50.0}, ${escapeSql(
-            t.unidad_medida
-          )}, ${t.stock_minimo_alerta}, ${t.activo}, ${escapeSql(t.created_at)}, ${escapeSql(
-            t.updated_at
-          )})`
+          )}, ${escapeSql(t.color)}, ${escapeSql(t.linea || 'General')}, ${
+            Number(t.ancho) || 1.5
+          }, ${escapeSql(t.unidad_medida)}, ${t.stock_minimo_alerta}, ${t.activo}, ${escapeSql(
+            t.created_at
+          )}, ${escapeSql(t.updated_at)})`
       )
       .join(',\n');
-    telasInserts += `\nON CONFLICT (id) DO UPDATE SET\n  nombre = EXCLUDED.nombre,\n  stock_minimo_alerta = EXCLUDED.stock_minimo_alerta;\n\n`;
+    telasInserts += `\nON CONFLICT (id) DO UPDATE SET\n  nombre = EXCLUDED.nombre,\n  codigo_color = EXCLUDED.codigo_color,\n  stock_minimo_alerta = EXCLUDED.stock_minimo_alerta;\n\n`;
   }
 
   let rollosInserts = `-- Inserción de Rollos Físicos (${rollos.length} registros)\n`;
