@@ -132,7 +132,13 @@ class InventoryStore {
         ...r,
         metraje: Number(r.metraje),
       }));
-      this.movimientos = movimientos;
+      this.movimientos = movimientos.map((m) => ({
+        ...m,
+        estado:
+          m.estado === 'ANULADO' || (m.observaciones && m.observaciones.includes('[ESTADO: ANULADO'))
+            ? 'ANULADO'
+            : 'ACTIVO',
+      }));
       this.detalles = detalles.map((d) => ({
         ...d,
         metraje_movimiento: Number(d.metraje_movimiento),
@@ -566,9 +572,12 @@ class InventoryStore {
     detallesRollo.forEach((d) => {
       const mov = this.movimientos.find((m) => m.id === d.movimiento_id);
       if (mov) {
-        if (mov.tipo_movimiento === 'IN' && !movIngreso) {
+        const isAnulado =
+          mov.estado === 'ANULADO' ||
+          Boolean(mov.observaciones && mov.observaciones.includes('[ESTADO: ANULADO'));
+        if (mov.tipo_movimiento === 'IN' && !movIngreso && mov.motivo !== 'REINGRESO_ANULACION') {
           movIngreso = mov;
-        } else if (mov.tipo_movimiento === 'OUT' && !movSalida) {
+        } else if (mov.tipo_movimiento === 'OUT' && !movSalida && !isAnulado) {
           movSalida = mov;
         }
       }
@@ -1252,43 +1261,193 @@ class InventoryStore {
     })();
   }
 
-  public deleteMovimiento(movimientoId: string): void {
-    const idx = this.movimientos.findIndex((m) => m.id === movimientoId);
-    if (idx === -1) throw new Error('Movimiento no encontrado');
+  public isCurrentUserAdmin(): boolean {
+    if (!this.currentUser) return false;
+    const codigo = (this.currentUser.perfil?.codigo || '').toUpperCase();
+    const cargo = (this.currentUser.cargo || '').toUpperCase();
+    return (
+      codigo === 'ADMIN' ||
+      this.currentUser.usuario.toLowerCase() === 'admin' ||
+      cargo.includes('GERENTE') ||
+      cargo.includes('ADMIN')
+    );
+  }
 
-    const mov = this.movimientos[idx];
-    const dets = this.detalles.filter((d) => d.movimiento_id === movimientoId);
-    const rollosRestauradosIds: string[] = [];
-
-    if (mov.tipo_movimiento === 'OUT') {
-      dets.forEach((d) => {
-        const rollo = this.rollos.find((r) => r.id === d.rollo_id);
-        if (rollo && (rollo.estado === 'VENDIDO' || rollo.estado === 'MERMA')) {
-          rollo.estado = 'DISPONIBLE';
-          rollo.fecha_salida = null;
-          rollosRestauradosIds.push(rollo.id);
-        }
-      });
+  public anularMovimiento(data: {
+    movimientoId: string;
+    motivoAnulacion: string;
+    tipoExtorno?: 'ANULACION_INGRESO' | 'AJUSTE_EGRESO' | 'REINGRESO_ANULACION';
+    passwordConfirmacion: string;
+  }): { movimientoAnulado: MovimientoInventario; contraoperacion: MovimientoInventario } {
+    // 1. Validar permisos exclusivos (Gerente General / Administrador)
+    if (!this.isCurrentUserAdmin()) {
+      throw new Error(
+        'Acceso denegado: Solo el Gerente General o Administradores tienen permiso para anular movimientos del Kárdex.'
+      );
     }
 
-    this.detalles = this.detalles.filter((d) => d.movimiento_id !== movimientoId);
-    this.movimientos.splice(idx, 1);
+    const cleanPass = data.passwordConfirmacion.trim();
+    if (!cleanPass) {
+      throw new Error('Debe ingresar su clave de confirmación de administrador.');
+    }
+
+    const currentPassMatches = this.currentUser?.password && this.currentUser.password === cleanPass;
+    const anyAdminMatches = this.usuarios.some(
+      (u) =>
+        u.activo &&
+        (u.usuario.toLowerCase() === 'admin' ||
+          this.perfiles.find((p) => p.id === u.perfil_id)?.codigo === 'ADMIN') &&
+        u.password === cleanPass
+    );
+
+    if (!currentPassMatches && !anyAdminMatches) {
+      throw new Error('Clave de confirmación de administrador incorrecta.');
+    }
+
+    const motivoLimpio = data.motivoAnulacion.trim();
+    if (!motivoLimpio) {
+      throw new Error('Debe especificar el motivo del error o de la anulación.');
+    }
+
+    const idx = this.movimientos.findIndex((m) => m.id === data.movimientoId);
+    if (idx === -1) throw new Error('Movimiento no encontrado en el Kárdex.');
+
+    const mov = this.movimientos[idx];
+    const isAlreadyAnulado =
+      mov.estado === 'ANULADO' || (mov.observaciones && mov.observaciones.includes('[ESTADO: ANULADO'));
+    if (isAlreadyAnulado) {
+      throw new Error('Este movimiento ya se encuentra en estado ANULADO.');
+    }
+
+    if (
+      ['ANULACION_INGRESO', 'AJUSTE_EGRESO', 'REINGRESO_ANULACION'].includes(String(mov.motivo))
+    ) {
+      throw new Error('No se puede anular un registro que ya corresponde a una contraoperación / extorno.');
+    }
+
+    const dets = this.detalles.filter((d) => d.movimiento_id === mov.id);
+    if (dets.length === 0) {
+      throw new Error('El movimiento no tiene rollos asociados para revertir.');
+    }
+
+    const now = new Date().toISOString();
+    const fechaTexto = new Date(now).toLocaleString('es-PE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    const usuarioAutorizador = this.currentUser
+      ? `${this.currentUser.nombre_completo} (@${this.currentUser.usuario})`
+      : 'Administrador General';
+
+    const rollosAfectados: Rollo[] = [];
+
+    if (mov.tipo_movimiento === 'IN') {
+      // Si se anula un INGRESO: verificar que los rollos aún estén DISPONIBLES y descontarlos
+      for (const d of dets) {
+        const rollo = this.rollos.find((r) => r.id === d.rollo_id);
+        if (rollo) {
+          if (rollo.estado === 'VENDIDO' || rollo.estado === 'RESERVADO') {
+            throw new Error(
+              `No se puede anular este ingreso porque el rollo ${rollo.codigo_rollo} ya se encuentra ${rollo.estado}. Anule primero su salida o pedido.`
+            );
+          }
+          rollosAfectados.push(rollo);
+        }
+      }
+
+      // Dar de baja del stock disponible los rollos ingresados por error
+      rollosAfectados.forEach((r) => {
+        r.estado = 'MERMA';
+        r.fecha_salida = now;
+        r.ubicacion = 'Baja por Anulación de Ingreso';
+      });
+    } else {
+      // Si se anula una SALIDA (OUT): reingresar los rollos a estado DISPONIBLE
+      for (const d of dets) {
+        const rollo = this.rollos.find((r) => r.id === d.rollo_id);
+        if (rollo) {
+          rollo.estado = 'DISPONIBLE';
+          rollo.fecha_salida = null;
+          rollosAfectados.push(rollo);
+        }
+      }
+    }
+
+    // 2. Marcar el movimiento original como ANULADO (NUNCA se borra la fila)
+    const selloAnulacion = `[ESTADO: ANULADO el ${fechaTexto} por ${usuarioAutorizador} | Motivo: ${motivoLimpio}]`;
+    mov.estado = 'ANULADO';
+    mov.observaciones = mov.observaciones
+      ? `${selloAnulacion} · ${mov.observaciones}`
+      : selloAnulacion;
+
+    // 3. Crear el movimiento de Contraoperación (Anulación / Extorno) en el Kárdex
+    const totalMetrosExtorno = dets.reduce((acc, d) => acc + Number(d.metraje_movimiento), 0);
+    const esIngresoOriginal = mov.tipo_movimiento === 'IN';
+    const tipoContraoperacion = esIngresoOriginal ? 'OUT' : 'IN';
+    const motivoContraoperacion = esIngresoOriginal
+      ? data.tipoExtorno === 'AJUSTE_EGRESO'
+        ? 'AJUSTE_EGRESO'
+        : 'ANULACION_INGRESO'
+      : 'REINGRESO_ANULACION';
+
+    const extornoId = generateUUID();
+    const contraoperacion: MovimientoInventario = {
+      id: extornoId,
+      tipo_movimiento: tipoContraoperacion,
+      motivo: motivoContraoperacion,
+      documento_referencia: `EXTORNO: ${mov.documento_referencia}`.slice(0, 100),
+      entidad_origen_destino: (esIngresoOriginal
+        ? `Anulación de Ingreso (${mov.entidad_origen_destino})`
+        : `Reingreso por Anulación (${mov.entidad_origen_destino})`
+      ).slice(0, 150),
+      observaciones: esIngresoOriginal
+        ? `Contraoperación (${motivoContraoperacion}) que descuenta ${totalMetrosExtorno.toFixed(2)} m del ingreso ${mov.documento_referencia}. Motivo del error: ${motivoLimpio}`
+        : `Contraoperación (REINGRESO_ANULACION) que anula la salida ${mov.documento_referencia} y devuelve ${dets.length} rollo(s) (${totalMetrosExtorno.toFixed(2)} m) a estado DISPONIBLE. Motivo del error: ${motivoLimpio}`,
+      registrado_por: usuarioAutorizador,
+      created_at: now,
+      estado: 'ACTIVO',
+    };
+
+    const nuevosDetalles: MovimientoDetalle[] = dets.map((d) => ({
+      id: generateUUID(),
+      movimiento_id: extornoId,
+      rollo_id: d.rollo_id,
+      metraje_movimiento: Number(d.metraje_movimiento),
+      created_at: now,
+    }));
+
+    this.movimientos.unshift(contraoperacion);
+    this.detalles.push(...nuevosDetalles);
     this.persist();
 
+    // 4. Grabar ambos eventos y reversión de rollos en Supabase (ochotex_bd)
     void (async () => {
       try {
-        for (const rId of rollosRestauradosIds) {
-          await supabaseRest.update('rollos', `id=eq.${rId}`, {
-            estado: 'DISPONIBLE',
-            fecha_salida: null,
+        await supabaseRest.update('movimientos_inventario', `id=eq.${mov.id}`, {
+          observaciones: mov.observaciones,
+        });
+
+        const { estado: _omitEstado, ...contraoperacionDb } = contraoperacion;
+        await supabaseRest.insert('movimientos_inventario', {
+          ...contraoperacionDb,
+          usuario_id: this.currentUser?.id || null,
+        });
+
+        await supabaseRest.insert('movimiento_detalles', nuevosDetalles);
+
+        for (const r of rollosAfectados) {
+          await supabaseRest.update('rollos', `id=eq.${r.id}`, {
+            estado: r.estado,
+            fecha_salida: r.fecha_salida,
+            ubicacion: r.ubicacion,
           });
         }
-        await supabaseRest.remove('movimiento_detalles', `movimiento_id=eq.${movimientoId}`);
-        await supabaseRest.remove('movimientos_inventario', `id=eq.${movimientoId}`);
       } catch (e) {
-        console.error('Error eliminando movimiento en Supabase:', e);
+        console.error('Error sincronizando anulación/extorno de movimiento en Supabase:', e);
       }
     })();
+
+    return { movimientoAnulado: mov, contraoperacion };
   }
 
   public getRollos(): Rollo[] {
@@ -1342,8 +1501,14 @@ class InventoryStore {
         detallesEnriquecidos.reduce((acc, curr) => acc + curr.metraje_movimiento, 0).toFixed(2)
       );
 
+      const estadoMov =
+        m.estado === 'ANULADO' || (m.observaciones && m.observaciones.includes('[ESTADO: ANULADO'))
+          ? 'ANULADO'
+          : 'ACTIVO';
+
       return {
         ...m,
+        estado: estadoMov,
         detalles: detallesEnriquecidos,
         total_rollos: totalRollos,
         total_metraje: totalMetraje,

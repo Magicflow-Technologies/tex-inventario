@@ -8,9 +8,20 @@ export type EstadoRollo = 'DISPONIBLE' | 'RESERVADO' | 'VENDIDO' | 'MERMA';
 
 export type TipoMovimiento = 'IN' | 'OUT';
 
-export type MotivoMovimientoIN = 'COMPRA_LOCAL' | 'IMPORTACION' | 'AJUSTE_INICIAL';
-export type MotivoMovimientoOUT = 'VENTA' | 'MERMA' | 'MUESTRA';
+export type MotivoMovimientoIN =
+  | 'COMPRA_LOCAL'
+  | 'IMPORTACION'
+  | 'AJUSTE_INICIAL'
+  | 'REINGRESO_ANULACION';
+export type MotivoMovimientoOUT =
+  | 'VENTA'
+  | 'MERMA'
+  | 'MUESTRA'
+  | 'AJUSTE_EGRESO'
+  | 'ANULACION_INGRESO';
 export type MotivoMovimiento = MotivoMovimientoIN | MotivoMovimientoOUT;
+
+export type EstadoMovimiento = 'ACTIVO' | 'ANULADO';
 
 export type UnidadMedida = 'METROS' | 'KILOS';
 
@@ -107,6 +118,7 @@ export interface MovimientoInventario {
   observaciones: string;
   registrado_por: string; // Usuario responsable del registro
   created_at: string;
+  estado?: EstadoMovimiento; // 'ACTIVO' | 'ANULADO'
 }
 
 /** 4. TABLA: movimiento_detalles (Rollos por Movimiento) */
