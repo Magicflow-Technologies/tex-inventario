@@ -546,7 +546,10 @@ class InventoryStore {
   } {
     const cleanCode = codigoBuscado.trim().toUpperCase();
     const rollo = this.rollos.find(
-      (r) => r.codigo_rollo.toUpperCase() === cleanCode || r.id === codigoBuscado
+      (r) =>
+        r.codigo_rollo.toUpperCase() === cleanCode ||
+        r.id === codigoBuscado ||
+        (r.lote && r.lote.toUpperCase() === cleanCode)
     );
 
     if (!rollo) {
@@ -1492,6 +1495,7 @@ class InventoryStore {
           metraje_movimiento: Number(d.metraje_movimiento),
           tela_nombre: tela ? tela.nombre : 'Desconocida',
           tela_color: tela ? tela.color : 'N/A',
+          lote: rollo ? rollo.lote : undefined,
           ubicacion: rollo ? rollo.ubicacion : undefined,
         };
       });

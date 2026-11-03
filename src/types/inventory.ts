@@ -204,6 +204,7 @@ export interface MovimientoCompleto extends MovimientoInventario {
     metraje_movimiento: number;
     tela_nombre: string;
     tela_color: string;
+    lote?: string;
     ubicacion?: string;
   }>;
   total_rollos: number;

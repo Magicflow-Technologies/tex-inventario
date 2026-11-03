@@ -55,7 +55,9 @@ export const KardexMovimientosView: React.FC<KardexMovimientosViewProps> = ({
       (m.observaciones && m.observaciones.toLowerCase().includes(q)) ||
       m.detalles.some(
         (d) =>
-          d.codigo_rollo.toLowerCase().includes(q) || d.tela_nombre.toLowerCase().includes(q)
+          d.codigo_rollo.toLowerCase().includes(q) ||
+          d.tela_nombre.toLowerCase().includes(q) ||
+          Boolean(d.lote && d.lote.toLowerCase().includes(q))
       );
 
     return matchesTipo && matchesSearch;

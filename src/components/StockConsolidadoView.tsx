@@ -45,14 +45,28 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
   const totalRollosResGlobal = stockList.reduce((acc, item) => acc + (item.total_rollos_reservados || 0), 0);
   const telasEnAlerta = stockList.filter((item) => item.alerta_reposicion);
 
-  // Filtrado
+  // Filtrado por tela, código de artículo, color, línea, código de rollo (ej. ROL-2026-00001) o lote (ej. LOT-2026-A1)
+  const q = searchQuery.trim().toLowerCase();
   const filteredStock = stockList.filter((item) => {
-    const matchesSearch =
-      item.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.codigo_color.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.color.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.linea && item.linea.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesTela =
+      !q ||
+      item.nombre.toLowerCase().includes(q) ||
+      item.codigo.toLowerCase().includes(q) ||
+      item.codigo_color.toLowerCase().includes(q) ||
+      item.color.toLowerCase().includes(q) ||
+      (item.linea && item.linea.toLowerCase().includes(q));
+
+    const rollosTela = q ? inventoryStore.getRollosDisponiblesFIFO(item.tela_id) : [];
+    const matchesRollo =
+      Boolean(q) &&
+      rollosTela.some(
+        (r) =>
+          r.codigo_rollo.toLowerCase().includes(q) ||
+          (r.lote && r.lote.toLowerCase().includes(q)) ||
+          (r.ubicacion && r.ubicacion.toLowerCase().includes(q))
+      );
+
+    const matchesSearch = matchesTela || matchesRollo;
 
     if (filterAlertsOnly) {
       return matchesSearch && item.alerta_reposicion;
@@ -242,7 +256,7 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por código de artículo, color, tela o línea..."
+            placeholder="Buscar por artículo, color, tela, línea, rollo (ROL-...) o lote (LOT-...)..."
             className="w-full bg-white border border-slate-300 rounded-full pl-11 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-2xs focus:outline-none focus:border-[#1a73e8] focus:ring-4 focus:ring-blue-100 transition-all"
           />
         </div>
@@ -284,9 +298,36 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                 </tr>
               ) : (
                 filteredStock.map((item) => {
-                  const isExpanded = expandedTelaId === item.tela_id;
+                  const allRollosFIFO = inventoryStore.getRollosDisponiblesFIFO(item.tela_id);
+                  const matchesTelaDirectly =
+                    !q ||
+                    item.nombre.toLowerCase().includes(q) ||
+                    item.codigo.toLowerCase().includes(q) ||
+                    item.codigo_color.toLowerCase().includes(q) ||
+                    item.color.toLowerCase().includes(q) ||
+                    Boolean(item.linea && item.linea.toLowerCase().includes(q));
+
+                  const hasMatchingRollo =
+                    Boolean(q) &&
+                    allRollosFIFO.some(
+                      (r) =>
+                        r.codigo_rollo.toLowerCase().includes(q) ||
+                        (r.lote && r.lote.toLowerCase().includes(q)) ||
+                        (r.ubicacion && r.ubicacion.toLowerCase().includes(q))
+                    );
+
+                  const isExpanded =
+                    expandedTelaId === item.tela_id || (Boolean(q) && hasMatchingRollo);
+
                   const rollosFIFO = isExpanded
-                    ? inventoryStore.getRollosDisponiblesFIFO(item.tela_id)
+                    ? !matchesTelaDirectly && hasMatchingRollo
+                      ? allRollosFIFO.filter(
+                          (r) =>
+                            r.codigo_rollo.toLowerCase().includes(q) ||
+                            (r.lote && r.lote.toLowerCase().includes(q)) ||
+                            (r.ubicacion && r.ubicacion.toLowerCase().includes(q))
+                        )
+                      : allRollosFIFO
                     : [];
 
                   return (
@@ -450,10 +491,27 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 font-mono">
-                                      {rollosFIFO.map((rollo, idx) => (
-                                        <tr key={rollo.id} className="hover:bg-blue-50/30">
+                                      {rollosFIFO.map((rollo) => {
+                                        const fifoIdx = allRollosFIFO.findIndex(
+                                          (r) => r.id === rollo.id
+                                        );
+                                        const priorityNum = fifoIdx !== -1 ? fifoIdx + 1 : 1;
+                                        const isHighlighted =
+                                          Boolean(q) &&
+                                          (rollo.codigo_rollo.toLowerCase().includes(q) ||
+                                            Boolean(
+                                              rollo.lote && rollo.lote.toLowerCase().includes(q)
+                                            ));
+                                        return (
+                                        <tr
+                                          key={rollo.id}
+                                          className={`hover:bg-blue-50/30 ${
+                                            isHighlighted ? 'bg-blue-50/70' : ''
+                                          }`}
+                                        >
                                           <td className="py-2.5 px-3 text-[#1a73e8] font-bold">
-                                            #{idx + 1} {idx === 0 ? '(Siguiente a Despachar)' : ''}
+                                            #{priorityNum}{' '}
+                                            {priorityNum === 1 ? '(Siguiente a Despachar)' : ''}
                                           </td>
                                           <td className="py-2.5 px-3 text-slate-900 font-bold">
                                             {rollo.codigo_rollo}
@@ -503,7 +561,8 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                             </div>
                                           </td>
                                         </tr>
-                                      ))}
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
