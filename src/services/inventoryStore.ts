@@ -12,6 +12,7 @@ import {
   PedidoCompleto,
   FaseAprobacionPedido,
   EstadoPedido,
+  Cliente,
   Perfil,
   Usuario,
   UsuarioConPerfil,
@@ -32,6 +33,7 @@ import { supabaseRest } from './supabaseClient';
 const STORAGE_KEYS = {
   PERFILES: '8tex_inv_perfiles_v2',
   USUARIOS: '8tex_inv_usuarios_v2',
+  CLIENTES: '8tex_inv_clientes_v2',
   TELAS: '8tex_inv_telas_v2',
   ROLLOS: '8tex_inv_rollos_v2',
   MOVIMIENTOS: '8tex_inv_movimientos_v2',
@@ -40,6 +42,9 @@ const STORAGE_KEYS = {
   PEDIDO_DETALLES: '8tex_inv_pedido_detalles_v2',
   SESSION: '8tex_auth_session_v2',
 };
+
+const SYSTEM_CLIENTES_PERFIL_ID = '00000000-0000-4000-8000-00000000c11e';
+const SYSTEM_CLIENTES_CODIGO = '__SYSTEM_CLIENTES__';
 
 function parseFaseFromObservaciones(
   obs?: string | null,
@@ -72,6 +77,7 @@ function encodeFaseInObservaciones(
 class InventoryStore {
   private perfiles: Perfil[] = [];
   private usuarios: Usuario[] = [];
+  private clientes: Cliente[] = [];
   private telas: Tela[] = [];
   private rollos: Rollo[] = [];
   private movimientos: MovimientoInventario[] = [];
@@ -92,6 +98,7 @@ class InventoryStore {
     try {
       const storedPerfiles = localStorage.getItem(STORAGE_KEYS.PERFILES);
       const storedUsuarios = localStorage.getItem(STORAGE_KEYS.USUARIOS);
+      const storedClientes = localStorage.getItem(STORAGE_KEYS.CLIENTES);
       const storedTelas = localStorage.getItem(STORAGE_KEYS.TELAS);
       const storedRollos = localStorage.getItem(STORAGE_KEYS.ROLLOS);
       const storedMovs = localStorage.getItem(STORAGE_KEYS.MOVIMIENTOS);
@@ -102,6 +109,10 @@ class InventoryStore {
 
       if (storedSession) {
         this.currentUser = JSON.parse(storedSession);
+      }
+
+      if (storedClientes) {
+        this.clientes = JSON.parse(storedClientes);
       }
 
       if (storedTelas && storedRollos && storedMovs && storedDet && storedPed && storedPedDet) {
@@ -129,7 +140,7 @@ class InventoryStore {
     this.notify();
     try {
       const [
-        perfiles,
+        rawPerfiles,
         usuarios,
         telas,
         rollos,
@@ -137,6 +148,7 @@ class InventoryStore {
         detalles,
         pedidos,
         pedidoDetalles,
+        clientesTabla,
       ] = await Promise.all([
         supabaseRest.select<Perfil>('perfiles', 'select=*&order=created_at.asc'),
         supabaseRest.select<Usuario>('usuarios', 'select=*&order=created_at.asc'),
@@ -146,7 +158,26 @@ class InventoryStore {
         supabaseRest.select<MovimientoDetalle>('movimiento_detalles', 'select=*'),
         supabaseRest.select<Pedido>('pedidos', 'select=*&order=created_at.desc'),
         supabaseRest.select<PedidoDetalle>('pedido_detalles', 'select=*'),
+        supabaseRest.select<Cliente>('clientes', 'select=*&order=razon_social.asc').catch(() => null),
       ]);
+
+      const sysClientesRow = rawPerfiles.find((p) => p.codigo === SYSTEM_CLIENTES_CODIGO);
+      const perfiles = rawPerfiles.filter((p) => p.codigo !== SYSTEM_CLIENTES_CODIGO);
+
+      if (Array.isArray(clientesTabla) && clientesTabla.length > 0) {
+        this.clientes = clientesTabla;
+      } else if (sysClientesRow && sysClientesRow.descripcion) {
+        try {
+          const parsed = JSON.parse(sysClientesRow.descripcion);
+          if (Array.isArray(parsed)) {
+            this.clientes = parsed;
+          }
+        } catch {
+          // conservar local
+        }
+      } else if (Array.isArray(clientesTabla)) {
+        this.clientes = clientesTabla;
+      }
 
       this.perfiles = perfiles.map((p) => ({
         ...p,
@@ -472,10 +503,137 @@ class InventoryStore {
     this.persist();
   }
 
+  // ==========================================
+  // DIRECTORIO DE CLIENTES COMERCIALES
+  // ==========================================
+  public getClientes(): Cliente[] {
+    return [...this.clientes].sort((a, b) => a.razon_social.localeCompare(b.razon_social));
+  }
+
+  private async syncClientesBackupToSupabase() {
+    try {
+      const now = new Date().toISOString();
+      await supabaseRest.insert(
+        'perfiles',
+        {
+          id: SYSTEM_CLIENTES_PERFIL_ID,
+          codigo: SYSTEM_CLIENTES_CODIGO,
+          nombre: 'Respaldo Sistema Clientes',
+          descripcion: JSON.stringify(this.clientes),
+          permisos: [],
+          activo: false,
+          created_at: now,
+          updated_at: now,
+        },
+        true
+      );
+    } catch {
+      // ignorar si no está disponible
+    }
+  }
+
+  public saveCliente(
+    data: Partial<Cliente> & { razon_social: string; ruc: string }
+  ): Cliente {
+    const cleanRazonSocial = data.razon_social.trim();
+    const cleanRuc = data.ruc.trim();
+    if (!cleanRazonSocial) {
+      throw new Error('La Razón Social o Nombre del cliente es obligatorio.');
+    }
+    if (!cleanRuc) {
+      throw new Error('El RUC o DNI del cliente es obligatorio.');
+    }
+
+    const duplicadoRuc = this.clientes.some(
+      (c) => c.id !== data.id && c.ruc.trim().toLowerCase() === cleanRuc.toLowerCase()
+    );
+    if (duplicadoRuc) {
+      throw new Error(`Ya existe un cliente registrado con el RUC/DNI "${cleanRuc}".`);
+    }
+
+    const now = new Date().toISOString();
+
+    if (data.id) {
+      const idx = this.clientes.findIndex((c) => c.id === data.id);
+      if (idx !== -1) {
+        this.clientes[idx] = {
+          ...this.clientes[idx],
+          razon_social: cleanRazonSocial,
+          ruc: cleanRuc,
+          correos: (data.correos ?? this.clientes[idx].correos ?? '').trim(),
+          telefonos: (data.telefonos ?? this.clientes[idx].telefonos ?? '').trim(),
+          direccion: (data.direccion ?? this.clientes[idx].direccion ?? '').trim(),
+          nombre_contacto: (data.nombre_contacto ?? this.clientes[idx].nombre_contacto ?? '').trim(),
+          observaciones: (data.observaciones ?? this.clientes[idx].observaciones ?? '').trim(),
+          activo: data.activo !== undefined ? data.activo : this.clientes[idx].activo,
+          updated_at: now,
+        };
+        const updated = this.clientes[idx];
+        this.persist();
+
+        void (async () => {
+          try {
+            await supabaseRest.update('clientes', `id=eq.${updated.id}`, updated);
+          } catch {
+            // Si la tabla física clientes aún no existe, el backup en ochotex_bd lo persiste
+          }
+          await this.syncClientesBackupToSupabase();
+        })();
+
+        return updated;
+      }
+    }
+
+    const nuevoCliente: Cliente = {
+      id: generateUUID(),
+      razon_social: cleanRazonSocial,
+      ruc: cleanRuc,
+      correos: (data.correos || '').trim(),
+      telefonos: (data.telefonos || '').trim(),
+      direccion: (data.direccion || '').trim(),
+      nombre_contacto: (data.nombre_contacto || '').trim(),
+      observaciones: (data.observaciones || '').trim(),
+      activo: true,
+      created_at: now,
+      updated_at: now,
+    };
+
+    this.clientes.push(nuevoCliente);
+    this.persist();
+
+    void (async () => {
+      try {
+        await supabaseRest.insert('clientes', nuevoCliente);
+      } catch {
+        // Respaldo automático en ochotex_bd
+      }
+      await this.syncClientesBackupToSupabase();
+    })();
+
+    return nuevoCliente;
+  }
+
+  public deleteCliente(clienteId: string): void {
+    const idx = this.clientes.findIndex((c) => c.id === clienteId);
+    if (idx === -1) return;
+    this.clientes.splice(idx, 1);
+    this.persist();
+
+    void (async () => {
+      try {
+        await supabaseRest.remove('clientes', `id=eq.${clienteId}`);
+      } catch {
+        // Respaldo automático en ochotex_bd
+      }
+      await this.syncClientesBackupToSupabase();
+    })();
+  }
+
   private persist() {
     try {
       localStorage.setItem(STORAGE_KEYS.PERFILES, JSON.stringify(this.perfiles));
       localStorage.setItem(STORAGE_KEYS.USUARIOS, JSON.stringify(this.usuarios));
+      localStorage.setItem(STORAGE_KEYS.CLIENTES, JSON.stringify(this.clientes));
       localStorage.setItem(STORAGE_KEYS.TELAS, JSON.stringify(this.telas));
       localStorage.setItem(STORAGE_KEYS.ROLLOS, JSON.stringify(this.rollos));
       localStorage.setItem(STORAGE_KEYS.MOVIMIENTOS, JSON.stringify(this.movimientos));

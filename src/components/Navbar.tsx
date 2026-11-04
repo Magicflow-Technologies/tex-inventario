@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Clock,
   Users,
+  Building2,
   LogOut,
   Shield,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ export type ActiveTab =
   | 'consulta_stock'
   | 'pos'
   | 'pedidos'
+  | 'clientes'
   | 'trazabilidad'
   | 'kardex'
   | 'telas'
@@ -134,6 +136,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {pedidosPendientesCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => onTabChange('clientes')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all whitespace-nowrap text-xs font-medium cursor-pointer ${
+                activeTab === 'clientes'
+                  ? 'bg-[#e8f0fe] text-[#1967d2] font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+              title="Directorio de Clientes en ochotex_bd"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Clientes</span>
             </button>
 
             <button
@@ -272,6 +287,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               {pedidosPendientesCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => onTabChange('clientes')}
+          className={`px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer ${
+            activeTab === 'clientes' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
+          }`}
+        >
+          Clientes
         </button>
         <button
           onClick={() => onTabChange('trazabilidad')}

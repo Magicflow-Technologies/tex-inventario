@@ -12,6 +12,7 @@ import { SalidaMercaderiaModal } from './components/SalidaMercaderiaModal';
 import { TrazabilidadRolloView } from './components/TrazabilidadRolloView';
 import { KardexMovimientosView } from './components/KardexMovimientosView';
 import { CatalogoTelasModal } from './components/CatalogoTelasModal';
+import { ClientesView } from './components/ClientesView';
 import { UsuariosPerfilesView } from './components/UsuariosPerfilesView';
 import { EtiquetaRolloModal } from './components/EtiquetaRolloModal';
 import { MigracionSqlModal } from './components/MigracionSqlModal';
@@ -32,6 +33,7 @@ export default function App() {
   const movimientos = inventoryStore.getMovimientosCompletos();
   const pedidos = inventoryStore.getPedidosCompletos();
   const pedidosPendientes = inventoryStore.getPedidosPendientes();
+  const clientes = inventoryStore.getClientes();
   const usuarios = inventoryStore.getUsuariosConPerfil();
   const perfiles = inventoryStore.getPerfiles();
 
@@ -44,6 +46,7 @@ export default function App() {
   const [initialTelaIdIngreso, setInitialTelaIdIngreso] = useState<string | undefined>();
   const [initialTelaIdSalida, setInitialTelaIdSalida] = useState<string | undefined>();
   const [initialTelaIdPos, setInitialTelaIdPos] = useState<string | undefined>();
+  const [initialClienteIdPos, setInitialClienteIdPos] = useState<string | undefined>();
 
   const [trazabilidadCodigo, setTrazabilidadCodigo] = useState<string>('ROL-2026-00001');
   const [rolloParaEtiqueta, setRolloParaEtiqueta] = useState<RolloConTela | null>(null);
@@ -161,6 +164,7 @@ export default function App() {
         {activeTab === 'consulta_stock' && (
           <ConsultaStockMovilView
             stockList={stockList}
+            clientes={clientes}
             defaultRegistradoPor={defaultResponsable}
             onPedidoCreado={(pedido) => {
               showToast(
@@ -175,7 +179,9 @@ export default function App() {
         {activeTab === 'pos' && (
           <PuntoVentaView
             telas={telas}
+            clientes={clientes}
             initialTelaId={initialTelaIdPos}
+            initialClienteId={initialClienteIdPos}
             defaultRegistradoPor={defaultResponsable}
             onPedidoCreado={(pedido) => {
               showToast(
@@ -184,6 +190,22 @@ export default function App() {
               );
             }}
             onIrAPedidosPendientes={() => setActiveTab('pedidos')}
+            onIrAClientes={() => setActiveTab('clientes')}
+          />
+        )}
+
+        {activeTab === 'clientes' && (
+          <ClientesView
+            clientes={clientes}
+            onSeleccionarParaPos={(cliente) => {
+              setInitialClienteIdPos(cliente.id);
+              setActiveTab('pos');
+              showToast(
+                `Cliente Seleccionado en POS`,
+                `Se cargó ${cliente.razon_social} (RUC ${cliente.ruc}) para la venta.`
+              );
+            }}
+            onNotify={showToast}
           />
         )}
 

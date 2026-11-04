@@ -153,6 +153,20 @@ CREATE TABLE IF NOT EXISTS ochotex_bd.movimiento_detalles (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS ochotex_bd.clientes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    razon_social VARCHAR(200) NOT NULL,
+    ruc VARCHAR(30) NOT NULL,
+    correos VARCHAR(250),
+    telefonos VARCHAR(150),
+    direccion TEXT,
+    nombre_contacto VARCHAR(150),
+    observaciones TEXT,
+    activo BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ochotex_bd.pedidos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     codigo_pedido VARCHAR(50) UNIQUE NOT NULL,

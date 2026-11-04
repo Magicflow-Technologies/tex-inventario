@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StockConsolidadoTela, PedidoCompleto } from '../types/inventory';
+import { StockConsolidadoTela, PedidoCompleto, Cliente } from '../types/inventory';
 import { inventoryStore } from '../services/inventoryStore';
 import {
   Search,
@@ -18,6 +18,7 @@ import {
 
 interface ConsultaStockMovilViewProps {
   stockList: StockConsolidadoTela[];
+  clientes?: Cliente[];
   defaultRegistradoPor?: string;
   onPedidoCreado?: (pedido: PedidoCompleto) => void;
   onIrAPedidosPendientes?: () => void;
@@ -68,6 +69,7 @@ function getColorHex(colorText?: string): string {
 
 export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   stockList,
+  clientes = [],
   defaultRegistradoPor,
   onPedidoCreado,
   onIrAPedidosPendientes,
@@ -83,8 +85,21 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   const [modoPedido, setModoPedido] = useState<'ROLLOS' | 'METROS'>('ROLLOS');
   const [cantidadPedido, setCantidadPedido] = useState<string>('1');
   const [precioMetroInput, setPrecioMetroInput] = useState<string>('28.00');
+  const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string>('');
   const [clientePedido, setClientePedido] = useState<string>('');
   const [documentoCliente, setDocumentoCliente] = useState<string>('');
+  const [telefonoCliente, setTelefonoCliente] = useState<string>('');
+
+  const handleSeleccionarCliente = (id: string) => {
+    setClienteIdSeleccionado(id);
+    if (!id) return;
+    const found = clientes.find((c) => c.id === id);
+    if (found) {
+      setClientePedido(found.razon_social);
+      setDocumentoCliente(found.ruc);
+      setTelefonoCliente(found.telefonos || '');
+    }
+  };
 
   // Carrito de pedido preliminar y modal de resumen
   const [pedidoActual, setPedidoActual] = useState<ItemPedidoPreliminar[]>([]);
@@ -306,6 +321,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
       const nuevoPedido = inventoryStore.crearOrdenPedido({
         cliente_nombre: nombreClienteFinal,
         cliente_documento: documentoCliente.trim() || 'S/D',
+        cliente_telefono: telefonoCliente.trim() || undefined,
         observaciones: 'Generado desde Consulta de Stock Móvil',
         registrado_por: defaultRegistradoPor || 'Ventas 8tex',
         items: itemsParaStore,
@@ -788,31 +804,52 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
               </div>
 
               {/* Precio por Metro y Cliente */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Precio por Metro (S/.):
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    value={precioMetroInput}
-                    onChange={(e) => setPrecioMetroInput(e.target.value)}
-                    className="w-full bg-slate-50 text-xs font-mono font-bold rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Cliente / Cotización (Opcional):
-                  </label>
-                  <input
-                    type="text"
-                    value={clientePedido}
-                    onChange={(e) => setClientePedido(e.target.value)}
-                    placeholder="Ej. Confecciones D'Moda S.A.C."
-                    className="w-full bg-slate-50 text-xs rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                  />
+              <div className="space-y-2.5">
+                {clientes.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-blue-700 mb-1">
+                      Seleccionar Cliente Registrado:
+                    </label>
+                    <select
+                      value={clienteIdSeleccionado}
+                      onChange={(e) => handleSeleccionarCliente(e.target.value)}
+                      className="w-full bg-blue-50/70 text-xs font-semibold text-slate-900 rounded-xl p-2.5 border border-blue-200 focus:bg-white focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">-- Elegir cliente o escribir abajo --</option>
+                      {clientes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.razon_social} (RUC: {c.ruc})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Precio por Metro (S/.):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={precioMetroInput}
+                      onChange={(e) => setPrecioMetroInput(e.target.value)}
+                      className="w-full bg-slate-50 text-xs font-mono font-bold rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Cliente / Cotización (Opcional):
+                    </label>
+                    <input
+                      type="text"
+                      value={clientePedido}
+                      onChange={(e) => setClientePedido(e.target.value)}
+                      placeholder="Ej. Confecciones D'Moda S.A.C."
+                      className="w-full bg-slate-50 text-xs rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -866,10 +903,29 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             </div>
 
             <div className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
+              {clientes.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-bold text-blue-700 mb-1">
+                    Seleccionar Cliente Registrado
+                  </label>
+                  <select
+                    value={clienteIdSeleccionado}
+                    onChange={(e) => handleSeleccionarCliente(e.target.value)}
+                    className="w-full bg-blue-50/70 font-semibold text-slate-900 rounded-xl p-2.5 border border-blue-200 focus:bg-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">-- Elegir de la lista de Clientes --</option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.razon_social} — RUC: {c.ruc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Nombre del Cliente *
+                    Nombre / Razón Social *
                   </label>
                   <input
                     type="text"

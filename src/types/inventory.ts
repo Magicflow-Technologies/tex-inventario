@@ -29,6 +29,7 @@ export type PermisoModulo =
   | 'stock'
   | 'pos'
   | 'pedidos'
+  | 'clientes'
   | 'trazabilidad'
   | 'kardex'
   | 'telas'
@@ -36,6 +37,21 @@ export type PermisoModulo =
   | 'sql'
   | 'ingreso'
   | 'salida';
+
+/** TABLA: ochotex_bd.clientes (Directorio de Clientes Comerciales) */
+export interface Cliente {
+  id: string; // UUIDv4
+  razon_social: string;
+  ruc: string;
+  correos: string;
+  telefonos: string;
+  direccion: string;
+  nombre_contacto: string;
+  observaciones: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 /** TABLA: ochotex_bd.perfiles (Roles y Permisos del Sistema) */
 export interface Perfil {

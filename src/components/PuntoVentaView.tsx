@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Tela, RolloConTela, PedidoCompleto } from '../types/inventory';
+import { Tela, RolloConTela, PedidoCompleto, Cliente } from '../types/inventory';
 import { inventoryStore } from '../services/inventoryStore';
 import {
   ShoppingCart,
@@ -16,14 +16,19 @@ import {
   FileText,
   Ruler,
   Check,
+  UserCheck,
+  Plus,
 } from 'lucide-react';
 
 interface PuntoVentaViewProps {
   telas: Tela[];
+  clientes?: Cliente[];
   initialTelaId?: string;
+  initialClienteId?: string;
   defaultRegistradoPor?: string;
   onPedidoCreado: (pedido: PedidoCompleto) => void;
   onIrAPedidosPendientes: () => void;
+  onIrAClientes?: () => void;
 }
 
 interface CartItem {
@@ -33,10 +38,13 @@ interface CartItem {
 
 export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   telas,
+  clientes = [],
   initialTelaId,
+  initialClienteId,
   defaultRegistradoPor,
   onPedidoCreado,
   onIrAPedidosPendientes,
+  onIrAClientes,
 }) => {
   // Filtros de stock
   const [selectedTelaId, setSelectedTelaId] = useState<string>(initialTelaId || 'ALL');
@@ -46,6 +54,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   const [cart, setCart] = useState<CartItem[]>([]);
 
   // Datos del Cliente y Cabecera del Pedido
+  const [selectedClienteId, setSelectedClienteId] = useState<string>(initialClienteId || '');
   const [clienteNombre, setClienteNombre] = useState('');
   const [clienteDocumento, setClienteDocumento] = useState('');
   const [clienteTelefono, setClienteTelefono] = useState('');
@@ -59,6 +68,34 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       setSelectedTelaId(initialTelaId);
     }
   }, [initialTelaId]);
+
+  useEffect(() => {
+    if (initialClienteId) {
+      const found = clientes.find((c) => c.id === initialClienteId);
+      if (found) {
+        setSelectedClienteId(found.id);
+        setClienteNombre(found.razon_social);
+        setClienteDocumento(found.ruc);
+        setClienteTelefono(found.telefonos || '');
+      }
+    }
+  }, [initialClienteId, clientes]);
+
+  const handleSelectClienteDirectorio = (clienteId: string) => {
+    setSelectedClienteId(clienteId);
+    if (!clienteId) {
+      return;
+    }
+    const found = clientes.find((c) => c.id === clienteId);
+    if (found) {
+      setClienteNombre(found.razon_social);
+      setClienteDocumento(found.ruc);
+      setClienteTelefono(found.telefonos || '');
+      if (found.direccion && !observaciones) {
+        setObservaciones(`Dirección: ${found.direccion}`);
+      }
+    }
+  };
 
   useEffect(() => {
     if (defaultRegistradoPor) {
@@ -493,8 +530,67 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 </span>
               </div>
 
-              {/* Datos del Cliente: Cuadros limpios de Steve Jobs */}
+              {/* Datos del Cliente: Selector de Directorio + Campos Editables */}
               <div className="space-y-3 text-xs">
+                <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-[#1a73e8]" />
+                      <span>Seleccionar Cliente Registrado:</span>
+                    </label>
+                    {onIrAClientes && (
+                      <button
+                        type="button"
+                        onClick={onIrAClientes}
+                        className="text-[11px] font-bold text-[#1a73e8] hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Nuevo Cliente</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={selectedClienteId}
+                    onChange={(e) => handleSelectClienteDirectorio(e.target.value)}
+                    className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all cursor-pointer"
+                  >
+                    <option value="">
+                      -- Seleccionar de la lista de Clientes ({clientes.length}) o escribir abajo --
+                    </option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.razon_social} — RUC: {c.ruc}
+                        {c.nombre_contacto ? ` (${c.nombre_contacto})` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedClienteId && (() => {
+                    const cli = clientes.find((c) => c.id === selectedClienteId);
+                    if (!cli) return null;
+                    return (
+                      <div className="text-[11px] text-slate-600 bg-white/90 rounded-lg p-2 border border-blue-100 space-y-0.5">
+                        {cli.nombre_contacto && (
+                          <div>
+                            <strong className="text-slate-800">Contacto:</strong> {cli.nombre_contacto}
+                          </div>
+                        )}
+                        {cli.correos && (
+                          <div>
+                            <strong className="text-slate-800">Correo:</strong> {cli.correos}
+                          </div>
+                        )}
+                        {cli.direccion && (
+                          <div>
+                            <strong className="text-slate-800">Dirección:</strong> {cli.direccion}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Cliente / Razón Social *
