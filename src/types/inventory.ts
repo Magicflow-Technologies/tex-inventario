@@ -97,6 +97,7 @@ export interface Tela {
   codigo_color: string; // Código Color: permite número (ej. "2004")
   color: string; // Descripción del color (ej. "Azul Marino")
   linea: string; // Línea: texto (ej. "Sastrería Formal", "Industrial", "Camisería")
+  precio_lista: number; // Precio de Lista por metro en Soles (numérico con decimales, ej. 12.50)
   ancho: number; // Ancho: unidad de medida metros (ej. 1.50)
   unidad_medida: UnidadMedida; // 'METROS'
   stock_minimo_alerta: number;
@@ -198,6 +199,7 @@ export interface StockConsolidadoTela {
   codigo_color: string; // Código numérico de color
   color: string;
   linea: string; // Línea
+  precio_lista: number; // Precio de Lista por metro (S/.)
   ancho: number; // Ancho en metros
   unidad_medida: UnidadMedida;
   total_rollos_disponibles: number;
@@ -215,6 +217,7 @@ export interface RolloConTela extends Rollo {
   tela_codigo_color: string;
   tela_color: string;
   tela_linea: string;
+  tela_precio_lista?: number;
   tela_ancho: number;
   unidad_medida: UnidadMedida;
 }

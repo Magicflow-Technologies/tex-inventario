@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS ochotex_bd.telas (
     nombre VARCHAR(150) NOT NULL,
     color VARCHAR(80),
     linea VARCHAR(100),
+    precio_lista NUMERIC(10, 2) DEFAULT 12.50,
     ancho NUMERIC(5, 2) DEFAULT 1.50,
     unidad_medida VARCHAR(20) DEFAULT 'METROS',
     stock_minimo_alerta NUMERIC(10, 2) DEFAULT 0.00,

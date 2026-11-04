@@ -203,7 +203,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
     setVarianteSeleccionada(variante);
     setModoPedido('ROLLOS');
     setCantidadPedido('1');
-    setPrecioMetroInput('28.00');
+    const precioCatalogo = Number(variante.precio_lista) || 12.5;
+    setPrecioMetroInput(precioCatalogo.toFixed(2));
   };
 
   const cerrarModalPedido = () => {

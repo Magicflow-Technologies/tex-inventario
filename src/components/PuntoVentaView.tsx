@@ -77,6 +77,10 @@ function getColorHex(colorText?: string): string {
 }
 
 function getPrecioListaSugerido(tela: Tela): number {
+  const precioCat = Number(tela.precio_lista);
+  if (!Number.isNaN(precioCat) && precioCat > 0) {
+    return Number(precioCat.toFixed(2));
+  }
   const cod = (tela.codigo || '').toUpperCase();
   const col = (tela.codigo_color || '').toUpperCase();
   if (cod === 'C-900') {

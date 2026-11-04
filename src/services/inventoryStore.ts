@@ -74,6 +74,38 @@ function encodeFaseInObservaciones(
   return cleanObs ? `[FASE:${fase}] ${cleanObs}` : `[FASE:${fase}]`;
 }
 
+function getDefaultPrecioLista(t: Partial<Tela>): number {
+  const cod = (t.codigo || '').toUpperCase();
+  const col = (t.codigo_color || '').toUpperCase();
+  if (cod === 'C-900') {
+    if (col === '2001' || col === '2002') return 13.5;
+    if (col === '2003' || col === '2004') return 13.0;
+    return 12.5;
+  }
+  if (cod.includes('TIZZ')) return 38.5;
+  if (cod.includes('DRIL')) return 24.0;
+  if (cod.includes('POPL')) return 16.0;
+  if (cod.includes('FRAN')) return 19.5;
+  return 13.0;
+}
+
+function parsePrecioListaFromTela(t: Partial<Tela>): number {
+  if (typeof t.precio_lista === 'number' && !Number.isNaN(t.precio_lista) && t.precio_lista > 0) {
+    return Number(t.precio_lista);
+  }
+  const rawLote = String(t.lote || '');
+  const match = rawLote.match(/\[PRECIO_LISTA:([0-9.]+)\]/);
+  if (match) {
+    const val = parseFloat(match[1]);
+    if (!Number.isNaN(val) && val >= 0) return val;
+  }
+  return getDefaultPrecioLista(t);
+}
+
+function encodePrecioListaInLote(precioLista: number): string {
+  return `[PRECIO_LISTA:${Number(precioLista || 0).toFixed(2)}]`;
+}
+
 class InventoryStore {
   private perfiles: Perfil[] = [];
   private usuarios: Usuario[] = [];
@@ -186,6 +218,7 @@ class InventoryStore {
       this.usuarios = usuarios;
       this.telas = telas.map((t) => ({
         ...t,
+        precio_lista: parsePrecioListaFromTela(t),
         ancho: Number(t.ancho) || 1.5,
         stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
       }));
@@ -715,6 +748,7 @@ class InventoryStore {
           codigo_color: tela.codigo_color || '000',
           color: tela.color,
           linea: tela.linea || 'General',
+          precio_lista: parsePrecioListaFromTela(tela),
           ancho: Number(tela.ancho) || 1.5,
           unidad_medida: tela.unidad_medida,
           total_rollos_disponibles: totalRollos,
@@ -757,6 +791,7 @@ class InventoryStore {
       tela_codigo_color: tela ? tela.codigo_color || '' : '',
       tela_color: tela ? tela.color : 'N/A',
       tela_linea: tela ? tela.linea || '' : '',
+      tela_precio_lista: tela ? parsePrecioListaFromTela(tela) : 0,
       tela_ancho: tela ? Number(tela.ancho) || 1.5 : 1.5,
       unidad_medida: tela ? tela.unidad_medida : 'METROS',
     };
@@ -808,6 +843,7 @@ class InventoryStore {
         tela_codigo_color: tela ? tela.codigo_color || '' : '',
         tela_color: tela ? tela.color : '',
         tela_linea: tela ? tela.linea || '' : '',
+        tela_precio_lista: tela ? parsePrecioListaFromTela(tela) : 0,
         tela_ancho: tela ? Number(tela.ancho) || 1.5 : 1.5,
         unidad_medida: tela ? tela.unidad_medida : 'METROS',
       }));
@@ -1335,6 +1371,9 @@ class InventoryStore {
     if (telaData.id) {
       const idx = this.telas.findIndex((t) => t.id === telaData.id);
       if (idx === -1) throw new Error('Tela no encontrada');
+      const precioListaFinal = Number(
+        telaData.precio_lista ?? parsePrecioListaFromTela(this.telas[idx])
+      );
       const updated: Tela = {
         ...this.telas[idx],
         codigo: cleanCodigo,
@@ -1342,6 +1381,8 @@ class InventoryStore {
         codigo_color: cleanCodigoColor,
         color: telaData.color?.trim() ?? this.telas[idx].color ?? 'Estándar',
         linea: telaData.linea?.trim() ?? this.telas[idx].linea ?? 'General',
+        precio_lista: precioListaFinal,
+        lote: encodePrecioListaInLote(precioListaFinal),
         ancho: Number(telaData.ancho ?? this.telas[idx].ancho ?? 1.5),
         unidad_medida: telaData.unidad_medida ?? this.telas[idx].unidad_medida ?? 'METROS',
         stock_minimo_alerta: Number(telaData.stock_minimo_alerta ?? this.telas[idx].stock_minimo_alerta ?? 0),
@@ -1357,6 +1398,7 @@ class InventoryStore {
         nombre: updated.nombre,
         color: updated.color,
         linea: updated.linea,
+        lote: encodePrecioListaInLote(updated.precio_lista),
         ancho: updated.ancho,
         unidad_medida: updated.unidad_medida,
         stock_minimo_alerta: updated.stock_minimo_alerta,
@@ -1370,6 +1412,7 @@ class InventoryStore {
 
       return updated;
     } else {
+      const precioListaNuevo = Number(telaData.precio_lista) || getDefaultPrecioLista(telaData);
       const newTela: Tela = {
         id: generateUUID(),
         codigo: cleanCodigo,
@@ -1377,6 +1420,8 @@ class InventoryStore {
         codigo_color: cleanCodigoColor,
         color: telaData.color?.trim() || 'Estándar',
         linea: telaData.linea?.trim() || 'Línea General',
+        precio_lista: precioListaNuevo,
+        lote: encodePrecioListaInLote(precioListaNuevo),
         ancho: Number(telaData.ancho) || 1.5,
         unidad_medida: 'METROS',
         stock_minimo_alerta: Number(telaData.stock_minimo_alerta) || 0,
@@ -1394,6 +1439,7 @@ class InventoryStore {
         nombre: newTela.nombre,
         color: newTela.color,
         linea: newTela.linea,
+        lote: encodePrecioListaInLote(newTela.precio_lista),
         ancho: newTela.ancho,
         unidad_medida: newTela.unidad_medida,
         stock_minimo_alerta: newTela.stock_minimo_alerta,
@@ -1695,6 +1741,7 @@ class InventoryStore {
         tela_codigo_color: tela ? tela.codigo_color || '' : '',
         tela_color: tela ? tela.color : 'N/A',
         tela_linea: tela ? tela.linea || '' : '',
+        tela_precio_lista: tela ? parsePrecioListaFromTela(tela) : 0,
         tela_ancho: tela ? Number(tela.ancho) || 1.5 : 1.5,
         unidad_medida: tela ? tela.unidad_medida : 'METROS',
       };

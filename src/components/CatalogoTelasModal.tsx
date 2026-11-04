@@ -41,9 +41,11 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
   const [colorNombre, setColorNombre] = useState('');
   // 3. Línea: (texto)
   const [linea, setLinea] = useState('');
-  // 4. Ancho: (unidad de medida metros)
+  // 4. Precio de Lista: (numérico con decimal)
+  const [precioLista, setPrecioLista] = useState('12.50');
+  // 5. Ancho: (unidad de medida metros)
   const [ancho, setAncho] = useState('1.50');
-  // 5. Fecha: (de registro automático)
+  // 6. Fecha: (de registro automático)
   const [fechaRegistroDisplay, setFechaRegistroDisplay] = useState('');
 
   const [stockMinimo, setStockMinimo] = useState('100.00');
@@ -57,7 +59,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       t.codigo.toLowerCase().includes(q) ||
       (t.codigo_color && t.codigo_color.toLowerCase().includes(q)) ||
       (t.color && t.color.toLowerCase().includes(q)) ||
-      (t.linea && t.linea.toLowerCase().includes(q))
+      (t.linea && t.linea.toLowerCase().includes(q)) ||
+      String(t.precio_lista || '').includes(q)
     );
   });
 
@@ -68,6 +71,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     setNombre('');
     setColorNombre('');
     setLinea('Sastrería Formal');
+    setPrecioLista('12.50');
     setAncho('1.50');
     setFechaRegistroDisplay(new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' }));
     setStockMinimo('100.00');
@@ -83,6 +87,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     setNombre(tela.nombre);
     setColorNombre(tela.color);
     setLinea(tela.linea || '');
+    setPrecioLista(Number(tela.precio_lista || 12.5).toFixed(2));
     setAncho(String(tela.ancho || 1.5));
     setFechaRegistroDisplay(
       new Date(tela.created_at).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -143,6 +148,12 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       return;
     }
 
+    const precioListaNum = parseFloat(precioLista);
+    if (isNaN(precioListaNum) || precioListaNum < 0) {
+      setFormError('El Precio de Lista debe ser un número válido con decimales (ej. 12.50).');
+      return;
+    }
+
     try {
       inventoryStore.saveTela({
         id: editingTela ? editingTela.id : undefined,
@@ -151,6 +162,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
         nombre: nombre.trim(),
         color: colorNombre.trim() || `Color ${cleanColorCode}`,
         linea: linea.trim() || 'Línea General',
+        precio_lista: Number(precioListaNum.toFixed(2)),
         ancho: anchoNum,
         unidad_medida: 'METROS',
         stock_minimo_alerta: parseFloat(stockMinimo) || 0,
@@ -237,6 +249,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 <th className="py-3 px-3">Cód. Color</th>
                 <th className="py-3 px-3">Nombre / Descripción</th>
                 <th className="py-3 px-3">Línea</th>
+                <th className="py-3 px-3 text-right">Precio de Lista</th>
                 <th className="py-3 px-3 text-right">Ancho (m)</th>
                 <th className="py-3 px-3 text-right">Stock Mín. (m)</th>
                 <th className="py-3 px-3">Fecha Registro</th>
@@ -259,6 +272,9 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                   </td>
                   <td className="py-3.5 px-3 text-slate-700 font-medium">
                     {tela.linea || 'General'}
+                  </td>
+                  <td className="py-3.5 px-3 text-right font-mono font-extrabold text-emerald-700 tabular-nums whitespace-nowrap">
+                    S/. {(Number(tela.precio_lista) || 0).toFixed(2)}
                   </td>
                   <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
                     {(Number(tela.ancho) || 1.5).toFixed(2)} m
@@ -415,8 +431,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 </div>
               </div>
 
-              {/* Grupo 3: Línea y Ancho (en metros) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Grupo 3: Línea, Precio de Lista y Ancho (en metros) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Línea * <span className="font-normal text-slate-500">(texto)</span>
@@ -425,7 +441,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     type="text"
                     value={linea}
                     onChange={(e) => setLinea(e.target.value)}
-                    placeholder="Ej. Sastrería Formal, Camisería, Industrial"
+                    placeholder="Ej. Moda Masculino"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
                     required
                   />
@@ -433,8 +449,30 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Precio de Lista *</span>
+                    <span className="text-emerald-700 font-mono text-[11px]">(S/. / m)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono font-bold">
+                      S/.
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={precioLista}
+                      onChange={(e) => setPrecioLista(e.target.value)}
+                      placeholder="12.50"
+                      className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl pl-9 pr-3 py-2 font-mono font-extrabold text-emerald-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
                     <span>Ancho de Tela *</span>
-                    <span className="text-[#1a73e8] font-mono text-[11px]">(unidad: metros)</span>
+                    <span className="text-[#1a73e8] font-mono text-[11px]">(metros)</span>
                   </label>
                   <div className="relative">
                     <input
