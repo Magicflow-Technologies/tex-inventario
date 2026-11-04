@@ -4,6 +4,7 @@ import { RolloConTela } from './types/inventory';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { LoginView } from './components/LoginView';
 import { StockConsolidadoView } from './components/StockConsolidadoView';
+import { ConsultaStockMovilView } from './components/ConsultaStockMovilView';
 import { PuntoVentaView } from './components/PuntoVentaView';
 import { PedidosPorFacturarView } from './components/PedidosPorFacturarView';
 import { IngresoMercaderiaModal } from './components/IngresoMercaderiaModal';
@@ -154,6 +155,20 @@ export default function App() {
             onArmarPedidoConTela={handleArmarPedidoConTela}
             onVerTrazabilidadRollo={handleVerTrazabilidad}
             onVerEtiqueta={handleVerEtiqueta}
+          />
+        )}
+
+        {activeTab === 'consulta_stock' && (
+          <ConsultaStockMovilView
+            stockList={stockList}
+            defaultRegistradoPor={defaultResponsable}
+            onPedidoCreado={(pedido) => {
+              showToast(
+                `Orden ${pedido.codigo_pedido} Creada en Supabase`,
+                `Se reservaron ${pedido.total_rollos} rollos físicos para ${pedido.cliente_nombre}.`
+              );
+            }}
+            onIrAPedidosPendientes={() => setActiveTab('pedidos')}
           />
         )}
 

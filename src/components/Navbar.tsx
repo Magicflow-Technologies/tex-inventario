@@ -16,6 +16,7 @@ import { UsuarioConPerfil } from '../types/inventory';
 
 export type ActiveTab =
   | 'stock'
+  | 'consulta_stock'
   | 'pos'
   | 'pedidos'
   | 'trazabilidad'
@@ -92,6 +93,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {alertCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => onTabChange('consulta_stock')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all whitespace-nowrap text-xs font-medium cursor-pointer ${
+                activeTab === 'consulta_stock'
+                  ? 'bg-[#e8f0fe] text-[#1967d2] font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Stock</span>
             </button>
 
             <button
@@ -230,6 +243,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               {alertCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => onTabChange('consulta_stock')}
+          className={`px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer ${
+            activeTab === 'consulta_stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
+          }`}
+        >
+          Stock
         </button>
         <button
           onClick={() => onTabChange('pos')}
