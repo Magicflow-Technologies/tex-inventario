@@ -67,11 +67,39 @@ export const SalidaMercaderiaModal: React.FC<SalidaMercaderiaModalProps> = ({
     }
   }, [isOpen, initialTelaId, defaultRegistradoPor]);
 
-  // Rollos disponibles de la tela seleccionada ordenados por FIFO (Consulta 3)
+  // Rollos disponibles filtrados por tela y también por el buscador general (scannerInput)
   const rollosDisponiblesTela = useMemo(() => {
-    if (!selectedTelaId) return [];
-    return inventoryStore.getRollosDisponiblesFIFO(selectedTelaId);
-  }, [selectedTelaId, isOpen]);
+    const rawQ = scannerInput.trim().toLowerCase();
+    const tokens = rawQ.split(/\s+/).filter(Boolean);
+
+    // Si hay búsqueda escrita, buscar en TODOS los rollos disponibles de cualquier tela (o de la seleccionada)
+    const baseList = tokens.length > 0
+      ? inventoryStore.getRollosConTela().filter((r) => r.estado === 'DISPONIBLE')
+      : selectedTelaId
+      ? inventoryStore.getRollosDisponiblesFIFO(selectedTelaId)
+      : [];
+
+    if (tokens.length === 0) return baseList;
+
+    return baseList.filter((r) => {
+      const fullText = [
+        r.codigo_rollo,
+        r.tela_codigo,
+        r.tela_codigo_color,
+        r.tela_nombre,
+        r.tela_color,
+        r.tela_linea || '',
+        r.metraje.toFixed(2),
+        String(r.metraje),
+        r.lote || '',
+        r.ubicacion || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return tokens.every((tok) => fullText.includes(tok));
+    });
+  }, [selectedTelaId, isOpen, scannerInput]);
 
   // Mapa de todos los rollos disponibles para resolución rápida
   const allRollosConTela = useMemo(() => {
@@ -110,19 +138,23 @@ export const SalidaMercaderiaModal: React.FC<SalidaMercaderiaModalProps> = ({
     setSelectedRolloIds([...selectedRolloIds, ...idsToAdd]);
   };
 
-  // Manejo de lectura de pistola/escáner de código de barras
+  // Manejo de lectura de pistola/escáner o búsqueda por cualquier columna
   const handleScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setScannerError(null);
     const code = scannerInput.trim().toUpperCase();
     if (!code) return;
 
-    const rollo = allRollosConTela.find(
+    const exactRollo = allRollosConTela.find(
       (r) => r.codigo_rollo.toUpperCase() === code || r.id === code
     );
 
+    const rollo =
+      exactRollo ||
+      rollosDisponiblesTela.find((r) => !selectedRolloIds.includes(r.id));
+
     if (!rollo) {
-      setScannerError(`Código ${code} no encontrado en la base de datos.`);
+      setScannerError(`No se encontraron rollos disponibles que coincidan con "${scannerInput}".`);
       return;
     }
 

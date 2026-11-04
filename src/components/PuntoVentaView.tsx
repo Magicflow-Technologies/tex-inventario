@@ -91,21 +91,39 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     );
   }, [allRollosConTela, cart]);
 
-  // Rollos filtrados para exploración de stock
+  // Rollos filtrados para exploración de stock (búsqueda completa por cualquier columna y múltiples palabras)
   const rollosFiltrados = useMemo(() => {
+    const tokens = searchRollQuery
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
     return rollosDisponibles.filter((r) => {
       const matchesTela = selectedTelaId === 'ALL' || r.tela_id === selectedTelaId;
-      const q = searchRollQuery.toLowerCase();
-      const matchesSearch =
-        r.codigo_rollo.toLowerCase().includes(q) ||
-        r.tela_codigo.toLowerCase().includes(q) ||
-        r.tela_codigo_color.toLowerCase().includes(q) ||
-        r.tela_nombre.toLowerCase().includes(q) ||
-        r.tela_color.toLowerCase().includes(q) ||
-        (r.lote && r.lote.toLowerCase().includes(q)) ||
-        (r.ubicacion && r.ubicacion.toLowerCase().includes(q));
+      if (!matchesTela) return false;
+      if (tokens.length === 0) return true;
 
-      return matchesTela && matchesSearch;
+      const fullRowText = [
+        r.codigo_rollo,
+        r.tela_codigo,
+        r.tela_codigo_color,
+        `cod. ${r.tela_codigo_color}`,
+        `cód. ${r.tela_codigo_color}`,
+        r.tela_nombre,
+        r.tela_color,
+        r.tela_linea || '',
+        r.metraje.toFixed(2),
+        String(r.metraje),
+        `${r.metraje.toFixed(2)}m`,
+        `${r.metraje.toFixed(2)} m`,
+        r.lote || '',
+        r.ubicacion || 'Central',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return tokens.every((token) => fullRowText.includes(token));
     });
   }, [rollosDisponibles, selectedTelaId, searchRollQuery]);
 
@@ -166,20 +184,32 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
   const handleScanOrDirectCode = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchRollQuery.trim()) return;
+    const rawQuery = searchRollQuery.trim();
+    if (!rawQuery) return;
 
-    const match = rollosDisponibles.find(
+    // 1. Priorizar coincidencia exacta por código de rollo o ID
+    const exactMatch = rollosDisponibles.find(
       (r) =>
-        r.codigo_rollo.toUpperCase() === searchRollQuery.trim().toUpperCase() ||
-        r.id === searchRollQuery.trim()
+        r.codigo_rollo.toUpperCase() === rawQuery.toUpperCase() ||
+        r.id === rawQuery
     );
 
-    if (match) {
-      handleAddToCart(match);
+    if (exactMatch) {
+      handleAddToCart(exactMatch);
       setSearchRollQuery('');
-    } else {
-      setErrorMsg(`El rollo ${searchRollQuery} no está disponible en stock o ya fue agregado.`);
+      return;
     }
+
+    // 2. Si filtró por cualquier otra columna (color, código, metraje, lote, ubicación), agregar el primer rollo coincidente (FIFO)
+    if (rollosFiltrados.length > 0) {
+      handleAddToCart(rollosFiltrados[0]);
+      if (rollosFiltrados.length === 1) {
+        setSearchRollQuery('');
+      }
+      return;
+    }
+
+    setErrorMsg(`No se encontraron rollos disponibles que coincidan con "${rawQuery}".`);
   };
 
   const handleCrearPedido = (e: React.FormEvent) => {
@@ -334,20 +364,24 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Escanear o buscar código de rollo:
+                  Buscar por rollo, tela, color, cód., metros, lote o ubicación:
                 </label>
                 <form onSubmit={handleScanOrDirectCode} className="relative">
                   <ScanBarcode className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={searchRollQuery}
-                    onChange={(e) => setSearchRollQuery(e.target.value)}
-                    placeholder="Ej. ROL-2026-00001 + Enter..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-16 py-2 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all"
+                    onChange={(e) => {
+                      setSearchRollQuery(e.target.value);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder="Ej. ROL-..., 4150, Silka, 60.00, LOT-2026, Estante A..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-16 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all"
                   />
                   <button
                     type="submit"
-                    className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg transition-colors"
+                    className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg transition-colors cursor-pointer"
+                    title="Agregar rollo filtrado al pedido"
                   >
                     Agregar
                   </button>
@@ -406,7 +440,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                               Cód. {rollo.tela_codigo_color || '00'} · {rollo.tela_color} ({rollo.tela_codigo})
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-900 tabular-nums text-sm">
+                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-900 tabular-nums text-sm whitespace-nowrap">
                             {rollo.metraje.toFixed(2)} m
                           </td>
                           <td className="py-2.5 px-3 font-sans text-slate-600 text-[11px]">

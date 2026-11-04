@@ -42,28 +42,45 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
   const totalRollosResGlobal = stockList.reduce((acc, item) => acc + (item.total_rollos_reservados || 0), 0);
   const telasEnAlerta = stockList.filter((item) => item.alerta_reposicion);
 
-  // Filtrado por tela, código de artículo, color, línea, código de rollo (ej. ROL-2026-00001) o lote (ej. LOT-2026-A1)
+  // Filtrado completo por cualquier columna de la tabla y subtabla (código, color, tela, línea, ancho, metros, rollos, estado, código de rollo, lote, ubicación)
   const q = searchQuery.trim().toLowerCase();
+  const tokens = q.split(/\s+/).filter(Boolean);
+
   const filteredStock = stockList.filter((item) => {
-    const matchesTela =
-      !q ||
-      item.nombre.toLowerCase().includes(q) ||
-      item.codigo.toLowerCase().includes(q) ||
-      item.codigo_color.toLowerCase().includes(q) ||
-      item.color.toLowerCase().includes(q) ||
-      (item.linea && item.linea.toLowerCase().includes(q));
+    const rollosTela = tokens.length > 0 ? inventoryStore.getRollosDisponiblesFIFO(item.tela_id) : [];
 
-    const rollosTela = q ? inventoryStore.getRollosDisponiblesFIFO(item.tela_id) : [];
-    const matchesRollo =
-      Boolean(q) &&
-      rollosTela.some(
-        (r) =>
-          r.codigo_rollo.toLowerCase().includes(q) ||
-          (r.lote && r.lote.toLowerCase().includes(q)) ||
-          (r.ubicacion && r.ubicacion.toLowerCase().includes(q))
-      );
+    const telaText = [
+      item.codigo,
+      item.codigo_color,
+      item.nombre,
+      item.color,
+      item.linea || 'General',
+      (Number(item.ancho) || 1.5).toFixed(2),
+      String(item.total_rollos_disponibles),
+      item.total_metros_disponibles.toFixed(2),
+      String(item.total_metros_disponibles),
+      item.stock_minimo_alerta.toFixed(2),
+      item.alerta_reposicion ? 'alerta reposicion' : 'optimo óptimo',
+    ]
+      .join(' ')
+      .toLowerCase();
 
-    const matchesSearch = matchesTela || matchesRollo;
+    const rollosText = rollosTela
+      .map((r) =>
+        [
+          r.codigo_rollo,
+          r.metraje.toFixed(2),
+          String(r.metraje),
+          r.lote || '',
+          r.ubicacion || '',
+        ].join(' ')
+      )
+      .join(' ')
+      .toLowerCase();
+
+    const combinedText = `${telaText} ${rollosText}`;
+    const matchesSearch =
+      tokens.length === 0 || tokens.every((tok) => combinedText.includes(tok));
 
     if (filterAlertsOnly) {
       return matchesSearch && item.alerta_reposicion;
