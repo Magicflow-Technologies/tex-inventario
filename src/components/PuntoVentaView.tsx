@@ -234,10 +234,10 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
         <button
           onClick={onIrAPedidosPendientes}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs self-start sm:self-center"
+          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs self-start sm:self-center cursor-pointer"
         >
           <Clock className="w-4 h-4 text-[#1a73e8]" />
-          <span>Ver Pedidos por Confirmar Factura/Guía</span>
+          <span>Ver Pedidos Pendientes</span>
         </button>
       </div>
 

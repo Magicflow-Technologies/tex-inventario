@@ -115,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Por Facturar</span>
+              <span>Pedidos Pendientes</span>
               {pedidosPendientesCount > 0 && (
                 <span className="text-[10px] font-mono font-bold bg-amber-500 text-white px-1.5 rounded-full">
                   {pedidosPendientesCount}
@@ -241,11 +241,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
         <button
           onClick={() => onTabChange('pedidos')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap flex items-center gap-1 ${
-            activeTab === 'pedidos' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold' : 'text-slate-600'
+          className={`px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+            activeTab === 'pedidos' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
           }`}
         >
-          <span>Por Facturar</span>
+          <span>Pedidos Pendientes</span>
           {pedidosPendientesCount > 0 && (
             <span className="font-mono text-[10px] bg-amber-500 text-white px-1.5 rounded-full font-bold">
               {pedidosPendientesCount}

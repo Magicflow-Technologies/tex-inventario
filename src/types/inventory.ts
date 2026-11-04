@@ -136,6 +136,13 @@ export interface MovimientoDetalle {
 
 export type EstadoPedido = 'PENDIENTE_FACTURACION' | 'FACTURADO' | 'ANULADO';
 
+export type FaseAprobacionPedido =
+  | 'J_VENTAS_PENDIENTE'
+  | 'J_VENTAS_APROBADO'
+  | 'CREDITOS_APROBADO'
+  | 'ALMACEN_FACTURADO'
+  | 'ALMACEN_DESPACHADO';
+
 /** 5. TABLA: pedidos (Órdenes de Pedido antes de facturar) */
 export interface Pedido {
   id: string; // UUIDv4
@@ -144,6 +151,7 @@ export interface Pedido {
   cliente_documento: string; // RUC o DNI
   cliente_telefono?: string;
   estado: EstadoPedido;
+  fase_aprobacion?: FaseAprobacionPedido;
   total_rollos: number;
   total_metros: number;
   total_importe: number; // en Soles (S/.)

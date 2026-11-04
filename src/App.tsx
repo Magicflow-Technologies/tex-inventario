@@ -284,7 +284,7 @@ export default function App() {
               onClick={() => setActiveTab('pedidos')}
               className="hover:text-[#1a73e8] transition-colors cursor-pointer font-medium"
             >
-              Pedidos por Facturar ({pedidosPendientes.length})
+              Pedidos Pendientes ({pedidosPendientes.length})
             </button>
           </div>
         </div>

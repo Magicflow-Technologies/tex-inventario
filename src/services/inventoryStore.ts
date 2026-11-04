@@ -10,6 +10,8 @@ import {
   Pedido,
   PedidoDetalle,
   PedidoCompleto,
+  FaseAprobacionPedido,
+  EstadoPedido,
   Perfil,
   Usuario,
   UsuarioConPerfil,
@@ -38,6 +40,34 @@ const STORAGE_KEYS = {
   PEDIDO_DETALLES: '8tex_inv_pedido_detalles_v2',
   SESSION: '8tex_auth_session_v2',
 };
+
+function parseFaseFromObservaciones(
+  obs?: string | null,
+  estado?: EstadoPedido
+): { fase: FaseAprobacionPedido; cleanObs: string } {
+  const raw = obs || '';
+  const match = raw.match(/^\[FASE:([A-Z_]+)\]\s*(.*)$/s);
+  if (match) {
+    return {
+      fase: match[1] as FaseAprobacionPedido,
+      cleanObs: match[2] || '',
+    };
+  }
+  const defaultFase: FaseAprobacionPedido =
+    estado === 'FACTURADO' ? 'ALMACEN_DESPACHADO' : 'J_VENTAS_APROBADO';
+  return {
+    fase: defaultFase,
+    cleanObs: raw,
+  };
+}
+
+function encodeFaseInObservaciones(
+  fase: FaseAprobacionPedido,
+  obs?: string | null
+): string {
+  const { cleanObs } = parseFaseFromObservaciones(obs);
+  return cleanObs ? `[FASE:${fase}] ${cleanObs}` : `[FASE:${fase}]`;
+}
 
 class InventoryStore {
   private perfiles: Perfil[] = [];
@@ -143,12 +173,17 @@ class InventoryStore {
         ...d,
         metraje_movimiento: Number(d.metraje_movimiento),
       }));
-      this.pedidos = pedidos.map((p) => ({
-        ...p,
-        total_rollos: Number(p.total_rollos),
-        total_metros: Number(p.total_metros),
-        total_importe: Number(p.total_importe),
-      }));
+      this.pedidos = pedidos.map((p) => {
+        const { fase, cleanObs } = parseFaseFromObservaciones(p.observaciones, p.estado);
+        return {
+          ...p,
+          fase_aprobacion: p.fase_aprobacion || fase,
+          observaciones: cleanObs,
+          total_rollos: Number(p.total_rollos),
+          total_metros: Number(p.total_metros),
+          total_importe: Number(p.total_importe),
+        };
+      });
       this.pedidoDetalles = pedidoDetalles.map((pd) => ({
         ...pd,
         metraje: Number(pd.metraje),
@@ -896,6 +931,9 @@ class InventoryStore {
       });
     });
 
+    const faseInicial: FaseAprobacionPedido = 'J_VENTAS_APROBADO';
+    const cleanObs = data.observaciones?.trim() || '';
+
     const nuevoPedido: Pedido = {
       id: pedidoId,
       codigo_pedido: codigoPedido,
@@ -903,12 +941,13 @@ class InventoryStore {
       cliente_documento: data.cliente_documento.trim() || 'S/D',
       cliente_telefono: data.cliente_telefono?.trim() || '',
       estado: 'PENDIENTE_FACTURACION',
+      fase_aprobacion: faseInicial,
       total_rollos: data.items.length,
       total_metros: Number(totalMetros.toFixed(2)),
       total_importe: Number(totalImporte.toFixed(2)),
       numero_factura: null,
       numero_guia: null,
-      observaciones: data.observaciones?.trim() || '',
+      observaciones: cleanObs,
       registrado_por: data.registrado_por.trim() || 'Ventas 8tex',
       created_at: now,
       facturado_at: null,
@@ -921,8 +960,10 @@ class InventoryStore {
     // Sincronizar con Supabase (ochotex_bd)
     void (async () => {
       try {
+        const { fase_aprobacion: _omitFase, ...pedidoDb } = nuevoPedido;
         await supabaseRest.insert('pedidos', {
-          ...nuevoPedido,
+          ...pedidoDb,
+          observaciones: encodeFaseInObservaciones(faseInicial, cleanObs),
           usuario_id: this.currentUser?.id || null,
         });
         await supabaseRest.insert('pedido_detalles', detallesNuevos);
@@ -937,12 +978,34 @@ class InventoryStore {
     return this.getPedidoById(pedidoId)!;
   }
 
+  public actualizarFasePedido(pedidoId: string, nuevaFase: FaseAprobacionPedido): PedidoCompleto {
+    const pedido = this.pedidos.find((p) => p.id === pedidoId);
+    if (!pedido) {
+      throw new Error('Pedido no encontrado');
+    }
+    pedido.fase_aprobacion = nuevaFase;
+    this.persist();
+
+    void (async () => {
+      try {
+        await supabaseRest.update('pedidos', `id=eq.${pedidoId}`, {
+          observaciones: encodeFaseInObservaciones(nuevaFase, pedido.observaciones),
+        });
+      } catch (e) {
+        console.error('Error sincronizando fase de pedido en Supabase:', e);
+      }
+    })();
+
+    return this.getPedidoById(pedidoId)!;
+  }
+
   public confirmarFacturacionPedido(
     pedidoId: string,
     data: {
       numero_factura: string;
       numero_guia?: string;
       registrado_por?: string;
+      fase_destino?: 'ALMACEN_FACTURADO' | 'ALMACEN_DESPACHADO';
     }
   ): { pedido: PedidoCompleto; movimientoId: string } {
     const pedido = this.pedidos.find((p) => p.id === pedidoId);
@@ -972,7 +1035,10 @@ class InventoryStore {
     });
 
     const now = new Date().toISOString();
+    const faseFinal: FaseAprobacionPedido =
+      data.fase_destino || (data.numero_guia?.trim() ? 'ALMACEN_DESPACHADO' : 'ALMACEN_FACTURADO');
     pedido.estado = 'FACTURADO';
+    pedido.fase_aprobacion = faseFinal;
     pedido.numero_factura = data.numero_factura.trim();
     pedido.numero_guia = data.numero_guia?.trim() || null;
     pedido.facturado_at = now;
@@ -985,6 +1051,7 @@ class InventoryStore {
           estado: 'FACTURADO',
           numero_factura: pedido.numero_factura,
           numero_guia: pedido.numero_guia,
+          observaciones: encodeFaseInObservaciones(faseFinal, pedido.observaciones),
           facturado_at: now,
         });
       } catch (e) {
