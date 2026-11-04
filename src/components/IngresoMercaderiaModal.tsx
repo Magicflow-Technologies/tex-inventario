@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tela, MotivoMovimientoIN } from '../types/inventory';
 import { inventoryStore } from '../services/inventoryStore';
 import { generateCodigoRollo } from '../utils/uuid';
@@ -6,11 +6,15 @@ import {
   X,
   Plus,
   Trash2,
-  CheckCircle,
-  PackagePlus,
-  Layers,
-  FileCheck,
+  Copy,
+  ChevronDown,
+  QrCode,
+  Search,
+  Check,
+  Receipt,
+  Save,
   AlertCircle,
+  Layers,
 } from 'lucide-react';
 
 interface IngresoMercaderiaModalProps {
@@ -23,11 +27,28 @@ interface IngresoMercaderiaModalProps {
 }
 
 interface ItemRolloForm {
+  id: string;
   tela_id: string;
   metraje: string;
   lote: string;
   ubicacion: string;
   codigo_rollo: string;
+  detallesAbiertos: boolean;
+}
+
+function getColorBadgeClass(colorText?: string): string {
+  const c = (colorText || '').toLowerCase();
+  if (c.includes('negro')) return 'bg-slate-900';
+  if (c.includes('azul noche') || c.includes('marino')) return 'bg-blue-950';
+  if (c.includes('azul')) return 'bg-blue-600';
+  if (c.includes('charcoal') || c.includes('grafito')) return 'bg-zinc-700';
+  if (c.includes('plomo') || c.includes('gris') || c.includes('cenizo')) return 'bg-slate-500';
+  if (c.includes('silka') || c.includes('beige') || c.includes('arena') || c.includes('crema')) return 'bg-stone-400';
+  if (c.includes('ginda') || c.includes('guinda') || c.includes('vino') || c.includes('rojo') || c.includes('granate')) return 'bg-rose-800';
+  if (c.includes('verde')) return 'bg-emerald-700';
+  if (c.includes('marron') || c.includes('marrón') || c.includes('cafe') || c.includes('café')) return 'bg-amber-900';
+  if (c.includes('blanco') || c.includes('perla')) return 'bg-slate-200 border border-slate-400';
+  return 'bg-blue-700';
 }
 
 export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
@@ -39,128 +60,223 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
   onSuccess,
 }) => {
   const currentYear = new Date().getFullYear();
-  const baseSeq = inventoryStore.getNextRolloSequence();
-
   const defaultTela = initialTelaId || (telas.length > 0 ? telas[0].id : '');
 
   // Cabecera del movimiento IN
+  const [cabeceraAbierta, setCabeceraAbierta] = useState(true);
   const [motivo, setMotivo] = useState<MotivoMovimientoIN>('COMPRA_LOCAL');
   const [documentoReferencia, setDocumentoReferencia] = useState('');
   const [entidadOrigenDestino, setEntidadOrigenDestino] = useState('');
+  const [loteDefecto, setLoteDefecto] = useState(`LOT-${currentYear}-A1`);
   const [registradoPor, setRegistradoPor] = useState(
-    defaultRegistradoPor || 'Carlos Mendoza (Jefe Almacén)'
+    defaultRegistradoPor || 'Administrador General'
   );
   const [observaciones, setObservaciones] = useState('');
 
   // Rollos a ingresar
-  const [rollos, setRollos] = useState<ItemRolloForm[]>([
-    {
-      tela_id: defaultTela,
-      metraje: '50.00',
-      lote: `LOT-${currentYear}-A1`,
-      ubicacion: 'Estante A - Nivel 1',
-      codigo_rollo: generateCodigoRollo(baseSeq),
-    },
-  ]);
-
+  const [rollos, setRollos] = useState<ItemRolloForm[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sub-modal selector rápido de Tela y Color
+  const [rolloEditandoTelaId, setRolloEditandoTelaId] = useState<string | null>(null);
+  const [busquedaTela, setBusquedaTela] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       const seq = inventoryStore.getNextRolloSequence();
       const targetTelaId = initialTelaId || (telas.length > 0 ? telas[0].id : '');
+      const defaultLot = `LOT-${currentYear}-A1`;
       setMotivo('COMPRA_LOCAL');
       setDocumentoReferencia('');
       setEntidadOrigenDestino('');
+      setLoteDefecto(defaultLot);
       setObservaciones('');
+      setCabeceraAbierta(true);
       if (defaultRegistradoPor) setRegistradoPor(defaultRegistradoPor);
       setErrorMsg(null);
+      setRolloEditandoTelaId(null);
+      setBusquedaTela('');
       setRollos([
         {
+          id: `r_${Date.now()}_0`,
           tela_id: targetTelaId,
           metraje: '50.00',
-          lote: `LOT-${currentYear}-A1`,
+          lote: defaultLot,
           ubicacion: 'Estante A - Nivel 1',
           codigo_rollo: generateCodigoRollo(seq),
+          detallesAbiertos: false,
         },
       ]);
     }
-  }, [isOpen, initialTelaId, defaultRegistradoPor]);
+  }, [isOpen, initialTelaId, defaultRegistradoPor, currentYear, telas]);
+
+  useEffect(() => {
+    if (rolloEditandoTelaId) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [rolloEditandoTelaId]);
 
   if (!isOpen) return null;
 
-  const handleAddRollo = () => {
-    const nextSeq = inventoryStore.getNextRolloSequence() + rollos.length;
-    const lastRollo = rollos[rollos.length - 1];
-    setRollos([
-      ...rollos,
-      {
-        tela_id: lastRollo ? lastRollo.tela_id : defaultTela,
-        metraje: lastRollo ? lastRollo.metraje : '50.00',
-        lote: lastRollo ? lastRollo.lote : `LOT-${currentYear}-A1`,
-        ubicacion: lastRollo ? lastRollo.ubicacion : 'Estante A - Nivel 1',
-        codigo_rollo: generateCodigoRollo(nextSeq),
-      },
-    ]);
+  const getNextSequenceForIndex = (offset = 0) => {
+    return inventoryStore.getNextRolloSequence() + rollos.length + offset;
+  };
+
+  const scrollToBottomRoll = () => {
+    setTimeout(() => {
+      if (listContainerRef.current) {
+        listContainerRef.current.scrollTo({
+          top: listContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
+    }, 80);
+  };
+
+  const handleDuplicarRollo = (idBase?: string) => {
+    if (rollos.length === 0) {
+      handleAgregarRolloVacio();
+      return;
+    }
+    const base = idBase
+      ? rollos.find((r) => r.id === idBase) || rollos[rollos.length - 1]
+      : rollos[rollos.length - 1];
+
+    const nuevo: ItemRolloForm = {
+      id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      tela_id: base.tela_id || defaultTela,
+      metraje: base.metraje || '50.00',
+      lote: base.lote || loteDefecto || `LOT-${currentYear}-A1`,
+      ubicacion: base.ubicacion || 'Estante A - Nivel 1',
+      codigo_rollo: generateCodigoRollo(getNextSequenceForIndex(0)),
+      detallesAbiertos: false,
+    };
+
+    setRollos((prev) => [...prev, nuevo]);
+    scrollToBottomRoll();
+  };
+
+  const handleAgregarRolloVacio = () => {
+    const nuevo: ItemRolloForm = {
+      id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      tela_id: defaultTela,
+      metraje: '50.00',
+      lote: loteDefecto || `LOT-${currentYear}-A1`,
+      ubicacion: 'Estante A - Nivel 1',
+      codigo_rollo: generateCodigoRollo(getNextSequenceForIndex(0)),
+      detallesAbiertos: false,
+    };
+    setRollos((prev) => [...prev, nuevo]);
+    scrollToBottomRoll();
   };
 
   const handleAddMultiple = (cantidad: number) => {
     const lastRollo = rollos[rollos.length - 1];
     const newItems: ItemRolloForm[] = [];
-    const startSeq = inventoryStore.getNextRolloSequence() + rollos.length;
     for (let i = 0; i < cantidad; i++) {
       newItems.push({
+        id: `r_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
         tela_id: lastRollo ? lastRollo.tela_id : defaultTela,
         metraje: lastRollo ? lastRollo.metraje : '50.00',
-        lote: lastRollo ? lastRollo.lote : `LOT-${currentYear}-A1`,
+        lote: lastRollo ? lastRollo.lote : loteDefecto || `LOT-${currentYear}-A1`,
         ubicacion: lastRollo ? lastRollo.ubicacion : 'Estante A - Nivel 1',
-        codigo_rollo: generateCodigoRollo(startSeq + i),
+        codigo_rollo: generateCodigoRollo(getNextSequenceForIndex(i)),
+        detallesAbiertos: false,
       });
     }
-    setRollos([...rollos, ...newItems]);
+    setRollos((prev) => [...prev, ...newItems]);
+    scrollToBottomRoll();
   };
 
-  const handleRemoveRollo = (index: number) => {
-    if (rollos.length === 1) {
+  const handleRemoveRollo = (id: string) => {
+    if (rollos.length <= 1) {
       setRollos([
         {
+          id: `r_${Date.now()}_reset`,
           tela_id: defaultTela,
           metraje: '50.00',
-          lote: `LOT-${currentYear}-A1`,
+          lote: loteDefecto || `LOT-${currentYear}-A1`,
           ubicacion: 'Estante A - Nivel 1',
           codigo_rollo: generateCodigoRollo(inventoryStore.getNextRolloSequence()),
+          detallesAbiertos: false,
         },
       ]);
       return;
     }
-    setRollos(rollos.filter((_, idx) => idx !== index));
+    setRollos((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const handleUpdateRollo = (index: number, field: keyof ItemRolloForm, val: string) => {
-    const updated = [...rollos];
-    updated[index] = { ...updated[index], [field]: val };
-    setRollos(updated);
+  const handleUpdateRollo = (id: string, field: keyof ItemRolloForm, val: string | boolean) => {
+    setRollos((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [field]: val } : r))
+    );
+  };
+
+  const handleAjustarMetros = (id: string, delta: number) => {
+    setRollos((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const current = parseFloat(r.metraje) || 0;
+        const next = Math.max(0.1, Number((current + delta).toFixed(2)));
+        return { ...r, metraje: next.toFixed(2) };
+      })
+    );
+  };
+
+  const handleLoteDefectoChange = (nuevoLote: string) => {
+    const upper = nuevoLote.toUpperCase();
+    const prevDefault = loteDefecto;
+    setLoteDefecto(upper);
+    // Sincronizar rollos que aún tenían el lote por defecto anterior
+    setRollos((prev) =>
+      prev.map((r) => (r.lote === prevDefault ? { ...r, lote: upper } : r))
+    );
   };
 
   // Cálculo en vivo
   const totalMetros = rollos.reduce((acc, r) => acc + (parseFloat(r.metraje) || 0), 0);
 
+  // Filtrado de catálogo para el selector rápido de tela
+  const telasFiltradas = telas.filter((t) => {
+    const q = busquedaTela.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (t.codigo || '').toLowerCase().includes(q) ||
+      (t.nombre || '').toLowerCase().includes(q) ||
+      (t.codigo_color || '').toLowerCase().includes(q) ||
+      (t.color || '').toLowerCase().includes(q) ||
+      (t.linea || '').toLowerCase().includes(q)
+    );
+  });
+
+  const handleSeleccionarTela = (telaId: string) => {
+    if (rolloEditandoTelaId) {
+      handleUpdateRollo(rolloEditandoTelaId, 'tela_id', telaId);
+    }
+    setRolloEditandoTelaId(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!entidadOrigenDestino.trim()) {
-      setErrorMsg('Debe especificar el Proveedor u Origen de la mercadería.');
-      return;
-    }
-
     if (!documentoReferencia.trim()) {
+      setCabeceraAbierta(true);
       setErrorMsg('Debe registrar el número de Documento de Referencia (Guía Remisión / Factura / DUA).');
       return;
     }
 
-    // Validar rollos individuales (metraje exacto y lote propios de cada unidad física)
+    if (!entidadOrigenDestino.trim()) {
+      setCabeceraAbierta(true);
+      setErrorMsg('Debe especificar el Proveedor u Origen de la mercadería.');
+      return;
+    }
+
     for (let i = 0; i < rollos.length; i++) {
       const r = rollos[i];
       const m = parseFloat(r.metraje);
@@ -169,6 +285,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
         return;
       }
       if (!r.lote || !r.lote.trim()) {
+        handleUpdateRollo(r.id, 'detallesAbiertos', true);
         setErrorMsg(`Ingrese el Lote / DUA para el rollo #${i + 1}.`);
         return;
       }
@@ -182,16 +299,16 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
       setIsSubmitting(true);
       const res = inventoryStore.registrarIngreso({
         motivo,
-        documento_referencia: documentoReferencia,
-        entidad_origen_destino: entidadOrigenDestino,
-        observaciones,
-        registrado_por: registradoPor,
+        documento_referencia: documentoReferencia.trim(),
+        entidad_origen_destino: entidadOrigenDestino.trim(),
+        observaciones: observaciones.trim(),
+        registrado_por: registradoPor.trim() || 'Administrador General',
         rollos: rollos.map((r) => ({
           tela_id: r.tela_id,
           metraje: parseFloat(r.metraje),
-          lote: r.lote,
-          ubicacion: r.ubicacion,
-          codigo_rollo: r.codigo_rollo,
+          lote: r.lote.trim(),
+          ubicacion: r.ubicacion.trim() || 'Estante A - Nivel 1',
+          codigo_rollo: r.codigo_rollo.trim(),
         })),
       });
 
@@ -206,291 +323,534 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a73e8] border border-blue-200">
-              <PackagePlus className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-slate-100 sm:rounded-3xl w-full max-w-2xl h-full sm:h-auto sm:max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200/80 relative animate-in fade-in duration-200"
+      >
+        {/* ================= TOP APP BAR (#0F284E) ================= */}
+        <header className="bg-[#0F284E] text-white shadow-md border-b border-blue-900/40 shrink-0 z-20">
+          <div className="px-4 py-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center font-black text-base text-blue-200 shrink-0">
+                8t
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-400/30">
+                    Flujo A · IN
+                  </span>
+                  <span className="text-[11px] text-slate-300 truncate">Almacén Central</span>
+                </div>
+                <h2 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight truncate">
+                  Ingreso de Mercadería
+                </h2>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Flujo A: Registro de Ingreso de Mercadería (IN)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Alta física de rollos individuales con código de barras y doble contabilidad rollo a rollo.
-              </p>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCabeceraAbierta(!cabeceraAbierta)}
+                className="px-2.5 py-2 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-slate-200 flex items-center gap-1.5 text-xs font-semibold border border-white/10 active:scale-95 transition cursor-pointer"
+                title="Mostrar u ocultar datos de Guía / Factura / Proveedor"
+              >
+                <Receipt className="w-4 h-4 text-blue-300" />
+                <span>Guía/Doc</span>
+                {documentoReferencia.trim() && entidadOrigenDestino.trim() && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    cabeceraAbierta ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-xl bg-slate-800/50 hover:bg-rose-600/80 text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
+                title="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {errorMsg && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMsg}</span>
+          {/* ================= 1. CABECERA DESPLEGABLE (SUNAT & ALMACÉN) ================= */}
+          {cabeceraAbierta && (
+            <div className="bg-[#0A1E3C] px-4 py-3.5 border-t border-blue-900/60 space-y-2.5 text-xs transition-all">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Motivo de Ingreso *
+                  </label>
+                  <select
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value as MotivoMovimientoIN)}
+                    className="w-full bg-slate-900/90 text-white rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none text-xs cursor-pointer"
+                  >
+                    <option value="COMPRA_LOCAL">COMPRA_LOCAL (Nacional)</option>
+                    <option value="IMPORTACION">IMPORTACIÓN (DUA / Exterior)</option>
+                    <option value="AJUSTE_INICIAL">AJUSTE_INICIAL (Inventario Físico)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Doc. Referencia (Guía / Factura) *
+                  </label>
+                  <input
+                    type="text"
+                    value={documentoReferencia}
+                    onChange={(e) => setDocumentoReferencia(e.target.value)}
+                    placeholder="Ej. GR-001-0941 / F001-492"
+                    className="w-full bg-slate-900/90 text-white placeholder-slate-500 rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Proveedor / Origen *
+                  </label>
+                  <input
+                    type="text"
+                    value={entidadOrigenDestino}
+                    onChange={(e) => setEntidadOrigenDestino(e.target.value)}
+                    placeholder="Ej. Hilanderías del Sur S.A.C."
+                    className="w-full bg-slate-900/90 text-white placeholder-slate-500 rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Lote / DUA Predeterminado
+                  </label>
+                  <input
+                    type="text"
+                    value={loteDefecto}
+                    onChange={(e) => handleLoteDefectoChange(e.target.value)}
+                    placeholder="LOT-2026-A1"
+                    className="w-full bg-slate-900/90 text-white placeholder-slate-500 rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Registrado Por (Responsable)
+                  </label>
+                  <input
+                    type="text"
+                    value={registradoPor}
+                    onChange={(e) => setRegistradoPor(e.target.value)}
+                    className="w-full bg-slate-900/70 text-slate-200 rounded-xl p-2 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Observaciones Generales
+                  </label>
+                  <input
+                    type="text"
+                    value={observaciones}
+                    onChange={(e) => setObservaciones(e.target.value)}
+                    placeholder="Opcional: Rollos sellados en polietileno..."
+                    className="w-full bg-slate-900/70 text-slate-200 placeholder-slate-500 rounded-xl p-2 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
+                  />
+                </div>
+              </div>
             </div>
           )}
+        </header>
 
-          {/* Sección 1: Datos del Movimiento (Cabecera movimientos_inventario) */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-[#1a73e8]" />
-              <span>1. Cabecera del Movimiento (SUNAT & Almacén)</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Motivo de Ingreso *
-                </label>
-                <select
-                  value={motivo}
-                  onChange={(e) => setMotivo(e.target.value as MotivoMovimientoIN)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all cursor-pointer"
-                >
-                  <option value="COMPRA_LOCAL">COMPRA_LOCAL (Nacional)</option>
-                  <option value="IMPORTACION">IMPORTACION (DUA / Extranjero)</option>
-                  <option value="AJUSTE_INICIAL">AJUSTE_INICIAL (Inventario Físico)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Documento Referencia *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Guía GR-001-0941 / Factura F001-492"
-                  value={documentoReferencia}
-                  onChange={(e) => setDocumentoReferencia(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Proveedor / Origen *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Hilanderías del Sur S.A.C."
-                  value={entidadOrigenDestino}
-                  onChange={(e) => setEntidadOrigenDestino(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                  required
-                />
-              </div>
+        {/* ================= BARRA DE ACCIONES RÁPIDAS ================= */}
+        <section className="px-4 py-2.5 bg-white border-b border-slate-200 shadow-xs shrink-0 z-10">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-blue-600" />
+                Rollos a Descargar ({rollos.length})
+              </span>
+              <p className="text-[11px] text-slate-500">
+                Toca &ldquo;Duplicar&rdquo; para clonar tela, metraje y lote
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Registrado Por (Responsable)
-                </label>
-                <input
-                  type="text"
-                  value={registradoPor}
-                  onChange={(e) => setRegistradoPor(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                />
-              </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleAddMultiple(3)}
+                className="px-2.5 py-2 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded-xl text-xs font-bold active:scale-95 transition cursor-pointer"
+                title="Agregar 3 rollos seguidos"
+              >
+                +3 Rollos
+              </button>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Observaciones Generales
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Rollos sellados en polietileno, buen estado"
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => handleDuplicarRollo()}
+                className="px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-1.5 active:scale-95 transition cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Duplicar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAgregarRolloVacio}
+                className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 hover:bg-blue-700 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nuevo Rollo</span>
+              </button>
             </div>
           </div>
+        </section>
 
-          {/* Sección 2: Detalle de Rollos Físicos (TABLA rollos & movimiento_detalles) */}
-          <div className="space-y-3 pt-3 border-t border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-[#1a73e8]" />
-                  <span>2. Unidades Físicas (Rollos a ingresar)</span>
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Cada fila representa un rollo físico independiente con su metraje exacto, lote y ubicación.
-                </p>
-              </div>
+        {/* ================= MENSAJE DE ERROR ================= */}
+        {errorMsg && (
+          <div className="mx-4 mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 shrink-0">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span className="font-medium">{errorMsg}</span>
+          </div>
+        )}
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAddMultiple(3)}
-                  className="px-3 py-1.5 text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all whitespace-nowrap cursor-pointer font-medium"
-                >
-                  + 3 Rollos
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddRollo}
-                  className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-[#1a73e8] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all whitespace-nowrap cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Agregar Rollo</span>
-                </button>
-              </div>
-            </div>
+        {/* ================= CONTENEDOR DE TARJETAS DE ROLLOS ================= */}
+        <div
+          ref={listContainerRef}
+          className="flex-1 overflow-y-auto p-3.5 space-y-3"
+        >
+          {rollos.map((r, index) => {
+            const tela = telas.find((t) => t.id === r.tela_id) || telas[0];
+            const dotClass = getColorBadgeClass(tela?.color);
 
-            {/* Listado dinámico de rollos */}
-            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 font-semibold">
-                  <tr>
-                    <th className="py-2.5 px-3 w-10">#</th>
-                    <th className="py-2.5 px-3">Código de Rollo</th>
-                    <th className="py-2.5 px-3">Tela / Color</th>
-                    <th className="py-2.5 px-3 w-32 text-right">Metros *</th>
-                    <th className="py-2.5 px-3">Lote / DUA *</th>
-                    <th className="py-2.5 px-3">Ubicación Almacén</th>
-                    <th className="py-2.5 px-3 text-center w-12"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rollos.map((rollo, index) => (
-                    <tr key={index} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 px-3 text-slate-400 font-mono font-medium">
-                        {index + 1}
-                      </td>
+            return (
+              <article
+                key={r.id}
+                className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-xs relative space-y-2.5 transition hover:border-blue-300"
+              >
+                {/* Fila Superior: # Rollo, Selector Rápido de Tela y Acciones */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0 border border-slate-200">
+                      {index + 1}
+                    </span>
 
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={rollo.codigo_rollo}
-                          onChange={(e) => handleUpdateRollo(index, 'codigo_rollo', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-[#1a73e8] focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                          placeholder="ROL-2026-XXXXX"
-                          required
-                        />
-                      </td>
-
-                      <td className="py-2 px-3">
-                        <select
-                          value={rollo.tela_id}
-                          onChange={(e) => handleUpdateRollo(index, 'tela_id', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                        >
-                          {telas.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.codigo} · {t.nombre} - Cód. Color {t.codigo_color || 'S/N'} ({t.color || 'Estándar'} · {t.linea || 'General'} - Ancho: {t.ancho || 1.5}m)
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      <td className="py-2 px-3 text-right">
-                        <div className="flex items-center gap-1 justify-end">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.1"
-                            value={rollo.metraje}
-                            onChange={(e) => handleUpdateRollo(index, 'metraje', e.target.value)}
-                            className="w-24 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 text-right focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                            placeholder="0.00"
-                            required
-                          />
-                          <span className="text-slate-500 text-xs">m</span>
+                    {/* BOTÓN TÁCTIL PRINCIPAL: SELECCIÓN DE TELA Y COLOR */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBusquedaTela('');
+                        setRolloEditandoTelaId(r.id);
+                      }}
+                      className="text-left py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                    >
+                      <span
+                        className={`w-3 h-3 rounded-full ${dotClass} shrink-0 shadow-2xs`}
+                      />
+                      {tela ? (
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-slate-900 truncate">
+                            {tela.codigo} · {tela.nombre}
+                          </div>
+                          <div className="text-[11px] text-blue-700 font-semibold truncate">
+                            Cód. {tela.codigo_color || 'S/N'} - {tela.color || 'Estándar'}{' '}
+                            <span className="text-slate-400 font-normal">
+                              ({tela.linea || 'General'} · {tela.ancho || 1.5}m)
+                            </span>
+                          </div>
                         </div>
-                      </td>
+                      ) : (
+                        <div className="text-xs font-semibold text-rose-600">
+                          Seleccionar Tela del Catálogo...
+                        </div>
+                      )}
+                      <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0 ml-auto" />
+                    </button>
+                  </div>
 
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={rollo.lote}
-                          onChange={(e) => handleUpdateRollo(index, 'lote', e.target.value.toUpperCase())}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                          placeholder="Ej. LOT-2026-A1 / DUA"
-                          required
-                        />
-                      </td>
+                  {/* Acciones de fila: Duplicar individual y Eliminar */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicarRollo(r.id)}
+                      title="Duplicar este rollo"
+                      className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRollo(r.id)}
+                      title={rollos.length === 1 ? 'Reiniciar fila' : 'Eliminar rollo'}
+                      className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
 
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={rollo.ubicacion}
-                          onChange={(e) => handleUpdateRollo(index, 'ubicacion', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
-                          placeholder="Ej. Estante B - Nivel 2"
-                        />
-                      </td>
+                {/* Fila Central: Input de Metros Grande & Accesible */}
+                <div className="bg-slate-50 rounded-xl p-2.5 flex items-center justify-between border border-slate-100">
+                  <span className="text-xs font-bold text-slate-600">
+                    Metros exactos:
+                  </span>
 
-                      <td className="py-2 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRollo(index)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title={rollos.length === 1 ? 'Limpiar fila' : 'Eliminar fila de rollo'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAjustarMetros(r.id, -1)}
+                      className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                      title="Restar 1 metro"
+                    >
+                      -
+                    </button>
 
-            {/* Resumen del Lote */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between text-xs text-slate-700 gap-4">
-              <div className="flex items-center gap-4">
-                <span>
-                  Total Rollos: <strong className="text-slate-900 font-mono font-bold">{rollos.length}</strong>
-                </span>
-                <span>
-                  Metraje Total a Ingresar:{' '}
-                  <strong className="text-[#1a73e8] font-mono text-sm font-bold">
-                    {totalMetros.toFixed(2)} m
-                  </strong>
+                    <div className="relative w-28">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.1"
+                        value={r.metraje}
+                        onChange={(e) => handleUpdateRollo(r.id, 'metraje', e.target.value)}
+                        className="w-full text-center text-base font-black text-slate-900 bg-white border border-blue-400 rounded-lg py-1 px-2 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                        placeholder="50.00"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAjustarMetros(r.id, 1)}
+                      className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                      title="Sumar 1 metro"
+                    >
+                      +
+                    </button>
+                    <span className="text-xs font-bold text-slate-500">m</span>
+                  </div>
+                </div>
+
+                {/* Fila Inferior: Datos Secundarios (Código QR, Lote y Ubicación) */}
+                <div className="pt-0.5 flex items-center justify-between text-[11px] text-slate-500">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-semibold">
+                    <QrCode className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{r.codigo_rollo}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleUpdateRollo(r.id, 'detallesAbiertos', !r.detallesAbiertos)
+                    }
+                    className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer py-0.5 px-1.5 rounded-lg hover:bg-blue-50 transition"
+                  >
+                    <span>
+                      {r.lote || 'Sin Lote'} · {r.ubicacion.split('-')[0].trim()}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        r.detallesAbiertos ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Acordeón colapsable para Código QR, Lote y Ubicación específica */}
+                {r.detallesAbiertos && (
+                  <div className="pt-2.5 border-t border-dashed border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                        Código de Rollo (QR):
+                      </label>
+                      <input
+                        type="text"
+                        value={r.codigo_rollo}
+                        onChange={(e) =>
+                          handleUpdateRollo(r.id, 'codigo_rollo', e.target.value)
+                        }
+                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                        Lote / DUA *:
+                      </label>
+                      <input
+                        type="text"
+                        value={r.lote}
+                        onChange={(e) =>
+                          handleUpdateRollo(r.id, 'lote', e.target.value.toUpperCase())
+                        }
+                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                        Ubicación Almacén:
+                      </label>
+                      <input
+                        type="text"
+                        value={r.ubicacion}
+                        onChange={(e) =>
+                          handleUpdateRollo(r.id, 'ubicacion', e.target.value)
+                        }
+                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+
+        {/* ================= BOTTOM FLOATING DOCK (RESUMEN & CONFIRMACIÓN) ================= */}
+        <footer className="bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-[0_-8px_20px_rgba(0,0,0,0.05)] shrink-0 z-20">
+          <div className="flex items-center justify-between gap-3">
+            {/* Resumen de Totales */}
+            <div className="leading-tight">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <span>Total:</span>
+                <span className="text-slate-800 font-bold">
+                  {rollos.length} {rollos.length === 1 ? 'rollo' : 'rollos'}
                 </span>
               </div>
-              <div className="text-slate-500 italic">
-                * Todos los rollos se registrarán con estado DISPONIBLE y UUIDv4 único.
+              <div className="text-lg font-black text-[#0F284E] flex items-baseline gap-1 font-mono">
+                <span>{totalMetros.toFixed(2)}</span>
+                <span className="text-xs font-bold text-blue-600 font-sans">m</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-3 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-2xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 max-w-xs py-3 px-4 bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-800 hover:to-blue-700 disabled:opacity-50 text-white font-extrabold rounded-2xl shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 text-xs active:scale-[0.98] transition cursor-pointer"
+              >
+                <Save className="w-4 h-4 shrink-0" />
+                <span>Confirmar Ingreso ({rollos.length})</span>
+              </button>
+            </div>
+          </div>
+        </footer>
+
+        {/* ================= MODAL SELECCIONADOR RÁPIDO DE TELA (BOTTOM SHEET / OVERLAY) ================= */}
+        {rolloEditandoTelaId && (
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150"
+            onClick={() => setRolloEditandoTelaId(null)}
+          >
+            <div
+              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[82vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Encabezado y buscador */}
+              <div className="p-4 pb-3 border-b border-slate-100">
+                <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">
+                      Seleccionar Tela y Color
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Elige la variedad del catálogo para asignarla al rollo
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRolloEditandoTelaId(null)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center active:scale-90 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={busquedaTela}
+                    onChange={(e) => setBusquedaTela(e.target.value)}
+                    placeholder="Buscar código, nombre o color (ej: 2001, Silka, C-900...)"
+                    className="w-full bg-slate-100 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none border border-transparent focus:border-blue-400"
+                  />
+                </div>
+              </div>
+
+              {/* Lista scrolleable de telas */}
+              <div className="overflow-y-auto p-3 space-y-1.5 flex-1">
+                {telasFiltradas.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 italic">
+                    No se encontraron telas con ese código, nombre o color.
+                  </div>
+                ) : (
+                  telasFiltradas.map((t) => {
+                    const currentRollo = rollos.find((r) => r.id === rolloEditandoTelaId);
+                    const isSelected = currentRollo?.tela_id === t.id;
+                    const badgeClass = getColorBadgeClass(t.color);
+
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleSeleccionarTela(t.id)}
+                        className={`w-full text-left p-3 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50/90 border-blue-300 shadow-2xs'
+                            : 'hover:bg-slate-50 border-slate-100 active:bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span
+                            className={`w-3.5 h-3.5 rounded-full ${badgeClass} shrink-0`}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {t.codigo} · {t.nombre}
+                            </div>
+                            <div className="text-xs font-semibold text-blue-700 truncate">
+                              Cód. Color {t.codigo_color || 'S/N'} - {t.color || 'Estándar'}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {t.linea || 'General'} · Ancho: {t.ancho || 1.5}m
+                            </div>
+                          </div>
+                        </div>
+
+                        <Check
+                          className={`w-4 h-4 shrink-0 ${
+                            isSelected ? 'text-blue-600' : 'text-slate-300'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
-
-          {/* Footer Actions */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-[#1a73e8] hover:bg-[#1557b0] disabled:opacity-50 rounded-xl shadow-sm hover:shadow transition-all cursor-pointer"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>Confirmar Ingreso ({rollos.length} rollos)</span>
-            </button>
-          </div>
-        </form>
-      </div>
+        )}
+      </form>
     </div>
   );
 };
