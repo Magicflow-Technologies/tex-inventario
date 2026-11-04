@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Package className="w-3.5 h-3.5" />
-              <span>Stock</span>
+              <span>Stock General</span>
               {alertCount > 0 && (
                 <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 px-1.5 rounded-full font-mono font-semibold">
                   {alertCount}
@@ -173,26 +173,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Zone 3: Quick Actions + Active User from ochotex_bd.usuarios */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={onOpenSalida}
-              className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all whitespace-nowrap cursor-pointer"
               title="Registrar Salida por Venta Directa, Merma o Muestra"
             >
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>Salida (OUT)</span>
+              <span className="hidden xs:inline sm:inline">Salida</span>
+              <span className="hidden sm:inline">(OUT)</span>
             </button>
 
             <button
               onClick={onOpenIngreso}
-              className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-xl shadow-xs transition-all whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-xl shadow-xs transition-all whitespace-nowrap cursor-pointer"
             >
               <ArrowDownLeft className="w-3.5 h-3.5" />
-              <span>Ingresar (IN)</span>
+              <span>Ingresar</span>
+              <span className="hidden sm:inline">(IN)</span>
             </button>
 
             {/* Chip de Usuario Conectado */}
-            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-slate-200">
+            <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 ml-0.5 sm:ml-1 border-l border-slate-200">
               <div className="hidden md:block text-right">
                 <div className="text-xs font-bold text-slate-900 leading-tight">
                   {currentUser.nombre_completo}
@@ -215,14 +217,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile / Tablet nav drawer */}
-      <div className="xl:hidden border-t border-slate-200 px-3 py-2 flex items-center justify-between text-xs overflow-x-auto gap-2 bg-slate-50/80">
+      <div className="xl:hidden border-t border-slate-200 px-3 py-2 flex items-center justify-start sm:justify-between text-xs overflow-x-auto gap-1.5 bg-slate-50/90 no-scrollbar">
         <button
           onClick={() => onTabChange('stock')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap ${
-            activeTab === 'stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold' : 'text-slate-600'
+          className={`px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
           }`}
         >
-          Stock
+          <span>Stock General</span>
+          {alertCount > 0 && (
+            <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 px-1.5 rounded-full font-mono font-bold">
+              {alertCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => onTabChange('pos')}
