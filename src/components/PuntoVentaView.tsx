@@ -3,21 +3,23 @@ import { Tela, RolloConTela, PedidoCompleto, Cliente } from '../types/inventory'
 import { inventoryStore } from '../services/inventoryStore';
 import {
   ShoppingCart,
-  Layers,
-  ScanBarcode,
-  CheckCircle,
+  Search,
+  XCircle,
+  User,
+  ChevronDown,
+  Wallet,
+  CalendarCheck,
   Clock,
-  Printer,
-  Trash2,
-  Building,
-  ArrowRight,
-  Warehouse,
-  AlertCircle,
-  FileText,
-  Ruler,
+  CheckCircle2,
+  Lock,
   Check,
-  UserCheck,
   Plus,
+  X,
+  Trash2,
+  Printer,
+  Mail,
+  MessageCircle,
+  UserPlus,
 } from 'lucide-react';
 
 interface PuntoVentaViewProps {
@@ -31,9 +33,62 @@ interface PuntoVentaViewProps {
   onIrAClientes?: () => void;
 }
 
-interface CartItem {
-  rollo: RolloConTela;
-  precio_metro: number;
+interface VarianteColorNodo {
+  tela: Tela;
+  codigoColor: string;
+  nombreColor: string;
+  nombreComercial: string;
+  badgeColor: string;
+  precioLista: number;
+  rollos: RolloConTela[];
+}
+
+interface ArticuloJerarquico {
+  codigoArticulo: string;
+  nombreBase: string;
+  colores: VarianteColorNodo[];
+}
+
+interface LineaJerarquica {
+  linea: string;
+  articulos: ArticuloJerarquico[];
+}
+
+function getColorHex(colorText?: string): string {
+  const c = (colorText || '').toLowerCase();
+  if (c.includes('negro')) return '#09090b';
+  if (c.includes('azul noche')) return '#0f172a';
+  if (c.includes('azul intermedio')) return '#1d4ed8';
+  if (c.includes('azul marino')) return '#2563eb';
+  if (c.includes('azul')) return '#2563eb';
+  if (c.includes('charcoal sin puntos')) return '#475569';
+  if (c.includes('charcoal')) return '#334155';
+  if (c.includes('plomo cochino')) return '#64748b';
+  if (c.includes('plomo intermedio')) return '#94a3b8';
+  if (c.includes('plomo cenizo')) return '#a1a1aa';
+  if (c.includes('plomo') || c.includes('gris')) return '#64748b';
+  if (c.includes('silka') || c.includes('beige') || c.includes('arena')) return '#78716c';
+  if (c.includes('grafito')) return '#52525b';
+  if (c.includes('ginda') || c.includes('guinda') || c.includes('vino') || c.includes('rojo'))
+    return '#881337';
+  if (c.includes('verde')) return '#047857';
+  if (c.includes('marron') || c.includes('marrón') || c.includes('cafe')) return '#78350f';
+  return '#1d4ed8';
+}
+
+function getPrecioListaSugerido(tela: Tela): number {
+  const cod = (tela.codigo || '').toUpperCase();
+  const col = (tela.codigo_color || '').toUpperCase();
+  if (cod === 'C-900') {
+    if (col === '2001' || col === '2002') return 13.5;
+    if (col === '2003' || col === '2004') return 13.0;
+    return 12.5;
+  }
+  if (cod.includes('TIZZ')) return 38.5;
+  if (cod.includes('DRIL')) return 24.0;
+  if (cod.includes('POPL')) return 16.0;
+  if (cod.includes('FRAN')) return 19.5;
+  return 13.0;
 }
 
 export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
@@ -46,733 +101,1679 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   onIrAPedidosPendientes,
   onIrAClientes,
 }) => {
-  // Filtros de stock
-  const [selectedTelaId, setSelectedTelaId] = useState<string>(initialTelaId || 'ALL');
-  const [searchRollQuery, setSearchRollQuery] = useState('');
+  // Búsqueda y filtro por línea
+  const [busquedaTexto, setBusquedaTexto] = useState<string>('');
+  const [lineaFiltro, setLineaFiltro] = useState<string>('TODAS');
 
-  // Carrito de rollos seleccionados en el pedido
-  const [cart, setCart] = useState<CartItem[]>([]);
-
-  // Datos del Cliente y Cabecera del Pedido
+  // Cliente asignado (de la cartera `ochotex_bd.clientes` o manual)
   const [selectedClienteId, setSelectedClienteId] = useState<string>(initialClienteId || '');
-  const [clienteNombre, setClienteNombre] = useState('');
-  const [clienteDocumento, setClienteDocumento] = useState('');
-  const [clienteTelefono, setClienteTelefono] = useState('');
-  const [observaciones, setObservaciones] = useState('');
-  const [registradoPor, setRegistradoPor] = useState(
-    defaultRegistradoPor || 'Carlos Mendoza (Ventas)'
+  const [clienteNombre, setClienteNombre] = useState<string>(
+    clientes[0]?.razon_social || 'Confecciones Gamarra Moda S.A.C.'
   );
+  const [clienteRuc, setClienteRuc] = useState<string>(clientes[0]?.ruc || '20601234567');
+  const [clienteTelefono, setClienteTelefono] = useState<string>(clientes[0]?.telefonos || '');
+  const [clienteCorreo, setClienteCorreo] = useState<string>(
+    clientes[0]?.correos || 'ventas@ochotex.pe'
+  );
+  const [clienteDireccion, setClienteDireccion] = useState<string>(clientes[0]?.direccion || '');
 
-  useEffect(() => {
-    if (initialTelaId) {
-      setSelectedTelaId(initialTelaId);
-    }
-  }, [initialTelaId]);
+  // Modal selector de clientes
+  const [isModalClientesOpen, setIsModalClientesOpen] = useState<boolean>(false);
+  const [busquedaClienteModal, setBusquedaClienteModal] = useState<string>('');
 
+  // Condición de pago y letras
+  const [condicionPago, setCondicionPago] = useState<'CONTADO' | 'CREDITO'>('CONTADO');
+  const [numeroLetras, setNumeroLetras] = useState<1 | 2 | 3 | 4>(1);
+
+  // Precios negociados individuales por variante de tela (tela.id -> precio)
+  const [preciosNegociados, setPreciosNegociados] = useState<Record<string, number>>({});
+
+  // Rollos seleccionados en el pedido: Map<rolloId, RolloConTela>
+  const [rollosSeleccionadosIds, setRollosSeleccionadosIds] = useState<string[]>([]);
+
+  // Acordeones de artículos y colores
+  const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});
+  const [coloresAbiertos, setColoresAbiertos] = useState<Record<string, boolean>>({});
+
+  // Modales de Carrito y Pantalla de Éxito
+  const [isCarritoOpen, setIsCarritoOpen] = useState<boolean>(false);
+  const [pedidoExitoso, setPedidoExitoso] = useState<{
+    pedido: PedidoCompleto;
+    condicion: 'CONTADO' | 'CREDITO';
+    letras: number;
+    requiereAutorizacionJefe: boolean;
+  } | null>(null);
+
+  // Toast rápido estilo app móvil
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const mostrarToastCalle = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => {
+      setToastMsg(null);
+    }, 2200);
+  };
+
+  // Sincronizar cliente inicial cuando viene desde la pestaña Clientes o carga la cartera
   useEffect(() => {
     if (initialClienteId) {
       const found = clientes.find((c) => c.id === initialClienteId);
       if (found) {
         setSelectedClienteId(found.id);
         setClienteNombre(found.razon_social);
-        setClienteDocumento(found.ruc);
+        setClienteRuc(found.ruc);
         setClienteTelefono(found.telefonos || '');
+        setClienteCorreo(found.correos || '');
+        setClienteDireccion(found.direccion || '');
       }
+    } else if (!selectedClienteId && clientes.length > 0) {
+      const first = clientes[0];
+      setSelectedClienteId(first.id);
+      setClienteNombre(first.razon_social);
+      setClienteRuc(first.ruc);
+      setClienteTelefono(first.telefonos || '');
+      setClienteCorreo(first.correos || '');
+      setClienteDireccion(first.direccion || '');
     }
   }, [initialClienteId, clientes]);
 
-  const handleSelectClienteDirectorio = (clienteId: string) => {
-    setSelectedClienteId(clienteId);
-    if (!clienteId) {
-      return;
-    }
-    const found = clientes.find((c) => c.id === clienteId);
-    if (found) {
-      setClienteNombre(found.razon_social);
-      setClienteDocumento(found.ruc);
-      setClienteTelefono(found.telefonos || '');
-      if (found.direccion && !observaciones) {
-        setObservaciones(`Dirección: ${found.direccion}`);
+  // Si viene desde Stock General con una tela preseleccionada (`initialTelaId`), abrir su acordeón
+  useEffect(() => {
+    if (initialTelaId) {
+      const foundTela = telas.find((t) => t.id === initialTelaId);
+      if (foundTela) {
+        setArticulosAbiertos((prev) => ({ ...prev, [foundTela.codigo]: true }));
+        setColoresAbiertos((prev) => ({ ...prev, [foundTela.id]: true }));
       }
     }
+  }, [initialTelaId, telas]);
+
+  // Obtener todos los rollos físicos disponibles
+  const allRollosDisponibles = useMemo(() => {
+    return inventoryStore
+      .getRollosConTela()
+      .filter((r) => r.estado === 'DISPONIBLE')
+      .sort((a, b) => new Date(a.fecha_ingreso).getTime() - new Date(b.fecha_ingreso).getTime());
+  }, [telas, pedidoExitoso, rollosSeleccionadosIds]);
+
+  // Mapa rápido de rollos por ID
+  const rollosDisponiblesMap = useMemo(() => {
+    const map = new Map<string, RolloConTela>();
+    allRollosDisponibles.forEach((r) => map.set(r.id, r));
+    return map;
+  }, [allRollosDisponibles]);
+
+  // Obtener precio lista y precio negociado de una tela
+  const getPrecioLista = (tela: Tela): number => getPrecioListaSugerido(tela);
+  const getPrecioNegociado = (tela: Tela): number => {
+    if (preciosNegociados[tela.id] !== undefined) {
+      return preciosNegociados[tela.id];
+    }
+    return getPrecioListaSugerido(tela);
   };
 
-  useEffect(() => {
-    if (defaultRegistradoPor) {
-      setRegistradoPor(defaultRegistradoPor);
-    }
-  }, [defaultRegistradoPor]);
+  const actualizarPrecioColor = (tela: Tela, nuevoValorStr: string) => {
+    const parsed = parseFloat(nuevoValorStr);
+    const val = Number.isNaN(parsed) ? getPrecioLista(tela) : Math.max(0.1, parsed);
+    setPreciosNegociados((prev) => ({
+      ...prev,
+      [tela.id]: val,
+    }));
+  };
 
-  // Precios sugeridos por tela
-  const [preciosSugeridos] = useState<Record<string, number>>({
-    'ART-TIZZ-001': 38.5,
-    'ART-TIZZ-002': 38.5,
-    'ART-DRIL-001': 24.0,
-    'ART-DRIL-002': 22.5,
-    'ART-POPL-001': 16.0,
-    'ART-FRAN-001': 19.5,
-  });
+  // Construir estructura jerárquica: Línea > Artículo > Colores > Rollos
+  const catalogoJerarquico = useMemo<LineaJerarquica[]>(() => {
+    const rollosPorTela = new Map<string, RolloConTela[]>();
+    allRollosDisponibles.forEach((r) => {
+      const arr = rollosPorTela.get(r.tela_id) || [];
+      arr.push(r);
+      rollosPorTela.set(r.tela_id, arr);
+    });
 
-  const [pedidoReciente, setPedidoReciente] = useState<PedidoCompleto | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const lineasMap = new Map<string, Map<string, ArticuloJerarquico>>();
 
-  // Rollos en estado DISPONIBLE en todo el almacén
-  const allRollosConTela = useMemo(() => {
-    return inventoryStore.getRollosConTela();
-  }, [cart, pedidoReciente]);
+    telas.forEach((t) => {
+      const nombreLinea = (t.linea || 'Moda Masculino').trim();
+      if (!lineasMap.has(nombreLinea)) {
+        lineasMap.set(nombreLinea, new Map<string, ArticuloJerarquico>());
+      }
+      const artMap = lineasMap.get(nombreLinea)!;
+      const codArt = (t.codigo || 'S/C').trim();
 
-  const rollosDisponibles = useMemo(() => {
-    const cartIds = new Set(cart.map((c) => c.rollo.id));
-    return allRollosConTela.filter(
-      (r) => r.estado === 'DISPONIBLE' && !cartIds.has(r.id)
-    );
-  }, [allRollosConTela, cart]);
+      const rollosDeVariante = rollosPorTela.get(t.id) || [];
+      const nodoColor: VarianteColorNodo = {
+        tela: t,
+        codigoColor: t.codigo_color || '00',
+        nombreColor: t.color || 'Estándar',
+        nombreComercial: t.nombre,
+        badgeColor: getColorHex(t.color),
+        precioLista: getPrecioListaSugerido(t),
+        rollos: rollosDeVariante,
+      };
 
-  // Rollos filtrados para exploración de stock (búsqueda completa por cualquier columna y múltiples palabras)
-  const rollosFiltrados = useMemo(() => {
-    const tokens = searchRollQuery
+      if (!artMap.has(codArt)) {
+        artMap.set(codArt, {
+          codigoArticulo: codArt,
+          nombreBase: t.nombre,
+          colores: [nodoColor],
+        });
+      } else {
+        const existingArt = artMap.get(codArt)!;
+        existingArt.colores.push(nodoColor);
+        if (!existingArt.nombreBase.toLowerCase().includes(t.nombre.toLowerCase())) {
+          existingArt.nombreBase = `${existingArt.nombreBase} / ${t.nombre}`;
+        }
+      }
+    });
+
+    const resultado: LineaJerarquica[] = [];
+    lineasMap.forEach((artMap, linea) => {
+      resultado.push({
+        linea,
+        articulos: Array.from(artMap.values()),
+      });
+    });
+
+    return resultado;
+  }, [telas, allRollosDisponibles]);
+
+  // Todas las líneas disponibles para las píldoras superiores
+  const lineasDisponibles = useMemo(() => {
+    return catalogoJerarquico.map((g) => g.linea);
+  }, [catalogoJerarquico]);
+
+  // Filtrar catálogo jerárquico según línea y buscador completo multi-palabra
+  const catalogoFiltrado = useMemo<LineaJerarquica[]>(() => {
+    const tokens = busquedaTexto
       .trim()
       .toLowerCase()
       .split(/\s+/)
       .filter(Boolean);
 
-    return rollosDisponibles.filter((r) => {
-      const matchesTela = selectedTelaId === 'ALL' || r.tela_id === selectedTelaId;
-      if (!matchesTela) return false;
-      if (tokens.length === 0) return true;
+    return catalogoJerarquico
+      .filter(
+        (grupoLinea) =>
+          lineaFiltro === 'TODAS' ||
+          grupoLinea.linea.toLowerCase() === lineaFiltro.toLowerCase()
+      )
+      .map((grupoLinea) => {
+        const articulosVisibles = grupoLinea.articulos
+          .map((art) => {
+            const coloresFiltrados = art.colores.filter((col) => {
+              if (tokens.length === 0) return true;
 
-      const fullRowText = [
-        r.codigo_rollo,
-        r.tela_codigo,
-        r.tela_codigo_color,
-        `cod. ${r.tela_codigo_color}`,
-        `cód. ${r.tela_codigo_color}`,
-        r.tela_nombre,
-        r.tela_color,
-        r.tela_linea || '',
-        r.metraje.toFixed(2),
-        String(r.metraje),
-        `${r.metraje.toFixed(2)}m`,
-        `${r.metraje.toFixed(2)} m`,
-        r.lote || '',
-        r.ubicacion || 'Central',
-      ]
-        .join(' ')
-        .toLowerCase();
+              const rollosText = col.rollos
+                .map(
+                  (r) =>
+                    `${r.codigo_rollo} ${r.metraje.toFixed(2)} ${r.metraje}m ${r.lote || ''} ${
+                      r.ubicacion || ''
+                    }`
+                )
+                .join(' ');
 
-      return tokens.every((token) => fullRowText.includes(token));
-    });
-  }, [rollosDisponibles, selectedTelaId, searchRollQuery]);
+              const fullVariantText = [
+                grupoLinea.linea,
+                art.codigoArticulo,
+                art.nombreBase,
+                col.codigoColor,
+                `cod. ${col.codigoColor}`,
+                `cód. ${col.codigoColor}`,
+                col.nombreColor,
+                col.nombreComercial,
+                rollosText,
+              ]
+                .join(' ')
+                .toLowerCase();
 
-  // Totales del Carrito
-  const totalMetrosPedido = cart.reduce((acc, c) => acc + Number(c.rollo.metraje), 0);
-  const totalImportePedido = cart.reduce(
-    (acc, c) => acc + Number(c.rollo.metraje) * c.precio_metro,
+              return tokens.every((tok) => fullVariantText.includes(tok));
+            });
+
+            return { ...art, colores: coloresFiltrados };
+          })
+          .filter((art) => art.colores.length > 0);
+
+        return {
+          ...grupoLinea,
+          articulos: articulosVisibles,
+        };
+      })
+      .filter((grupoLinea) => grupoLinea.articulos.length > 0);
+  }, [catalogoJerarquico, lineaFiltro, busquedaTexto]);
+
+  // Rollos seleccionados enriquecidos con su tela y precio negociado
+  const rollosSeleccionadosDetalle = useMemo(() => {
+    const telaMap = new Map<string, Tela>();
+    telas.forEach((t) => telaMap.set(t.id, t));
+
+    return rollosSeleccionadosIds
+      .map((id) => {
+        const rollo = rollosDisponiblesMap.get(id);
+        if (!rollo) return null;
+        const tela = telaMap.get(rollo.tela_id);
+        if (!tela) return null;
+        const precioLista = getPrecioLista(tela);
+        const precioNegociado = getPrecioNegociado(tela);
+        return {
+          rollo,
+          tela,
+          precioLista,
+          precioNegociado,
+          subtotal: Number(rollo.metraje) * precioNegociado,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+  }, [rollosSeleccionadosIds, rollosDisponiblesMap, telas, preciosNegociados]);
+
+  // Totales en vivo
+  const totalRollos = rollosSeleccionadosDetalle.length;
+  const totalMetros = rollosSeleccionadosDetalle.reduce(
+    (acc, item) => acc + Number(item.rollo.metraje),
     0
   );
+  const totalSoles = rollosSeleccionadosDetalle.reduce((acc, item) => acc + item.subtotal, 0);
+  const montoPorLetra = totalSoles / (numeroLetras || 1);
 
-  const handleAddToCart = (rollo: RolloConTela) => {
-    const precioDefecto = preciosSugeridos[rollo.tela_codigo] || 25.0;
-    setCart((prev) => [...prev, { rollo, precio_metro: precioDefecto }]);
-    setErrorMsg(null);
+  // Regla Comercial Dinámica (HU-010 / HU-019)
+  const algunPrecioRebajado = useMemo(() => {
+    return rollosSeleccionadosDetalle.some((item) => item.precioNegociado < item.precioLista);
+  }, [rollosSeleccionadosDetalle]);
+
+  const requiereAprobacionJefeVentas = condicionPago === 'CREDITO' && algunPrecioRebajado;
+
+  // Toggle acordeón artículo
+  const toggleArticulo = (codigoArticulo: string) => {
+    setArticulosAbiertos((prev) => ({
+      ...prev,
+      [codigoArticulo]: !(prev[codigoArticulo] ?? true),
+    }));
   };
 
-  const handleAddFirstFIFO = (telaId: string) => {
-    const disponiblesTela = rollosDisponibles
-      .filter((r) => r.tela_id === telaId)
-      .sort((a, b) => new Date(a.fecha_ingreso).getTime() - new Date(b.fecha_ingreso).getTime());
-
-    if (disponiblesTela.length > 0) {
-      handleAddToCart(disponiblesTela[0]);
-    }
+  // Toggle acordeón variante de color
+  const toggleColorDesglose = (telaId: string) => {
+    setColoresAbiertos((prev) => ({
+      ...prev,
+      [telaId]: !(prev[telaId] ?? false),
+    }));
   };
 
-  const handleRemoveFromCart = (rolloId: string) => {
-    setCart((prev) => prev.filter((item) => item.rollo.id !== rolloId));
-  };
-
-  const handleClearCart = () => {
-    if (cart.length === 0) return;
-    setCart([]);
-  };
-
-  const handleDeleteRolloFromStock = (rollo: RolloConTela) => {
-    if (
-      !window.confirm(
-        `¿Estás seguro de eliminar del inventario el rollo ${rollo.codigo_rollo} (${rollo.tela_nombre} - ${rollo.metraje.toFixed(2)} m)?`
-      )
-    )
-      return;
-    try {
-      inventoryStore.deleteRollo(rollo.id);
-      setCart((prev) => prev.filter((item) => item.rollo.id !== rollo.id));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar rollo');
-    }
-  };
-
-  const handleUpdatePrice = (rolloId: string, precio: number) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.rollo.id === rolloId ? { ...item, precio_metro: Math.max(0, precio) } : item
-      )
-    );
-  };
-
-  const handleScanOrDirectCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    const rawQuery = searchRollQuery.trim();
-    if (!rawQuery) return;
-
-    // 1. Priorizar coincidencia exacta por código de rollo o ID
-    const exactMatch = rollosDisponibles.find(
-      (r) =>
-        r.codigo_rollo.toUpperCase() === rawQuery.toUpperCase() ||
-        r.id === rawQuery
-    );
-
-    if (exactMatch) {
-      handleAddToCart(exactMatch);
-      setSearchRollQuery('');
-      return;
-    }
-
-    // 2. Si filtró por cualquier otra columna (color, código, metraje, lote, ubicación), agregar el primer rollo coincidente (FIFO)
-    if (rollosFiltrados.length > 0) {
-      handleAddToCart(rollosFiltrados[0]);
-      if (rollosFiltrados.length === 1) {
-        setSearchRollQuery('');
+  // Marcar / Desmarcar Rollo Físico
+  const toggleRolloCalle = (rollo: RolloConTela) => {
+    setRollosSeleccionadosIds((prev) => {
+      const existe = prev.includes(rollo.id);
+      if (existe) {
+        mostrarToastCalle('Rollo retirado del pedido');
+        return prev.filter((id) => id !== rollo.id);
+      } else {
+        mostrarToastCalle(`+ ${rollo.metraje.toFixed(2)} m agregados al pedido`);
+        return [...prev, rollo.id];
       }
-      return;
-    }
-
-    setErrorMsg(`No se encontraron rollos disponibles que coincidan con "${rawQuery}".`);
+    });
   };
 
-  const handleCrearPedido = (e: React.FormEvent) => {
+  // Escaneo rápido con Enter en el buscador
+  const handleBuscadorSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    const q = busquedaTexto.trim();
+    if (!q) return;
 
-    if (cart.length === 0) {
-      setErrorMsg('Debe agregar al menos un rollo de tela disponible en stock para armar el pedido.');
+    const exactRollo = allRollosDisponibles.find(
+      (r) => r.codigo_rollo.toUpperCase() === q.toUpperCase() || r.id === q
+    );
+    if (exactRollo) {
+      toggleRolloCalle(exactRollo);
+      setBusquedaTexto('');
+    }
+  };
+
+  // Agrupación de ítems en el Carrito por Variante de Color
+  const gruposEnCarrito = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        tela: Tela;
+        precioLista: number;
+        precioNegociado: number;
+        rollos: RolloConTela[];
+        metrosSubtotal: number;
+        subtotalSoles: number;
+      }
+    >();
+
+    rollosSeleccionadosDetalle.forEach((item) => {
+      const key = item.tela.id;
+      const actual = map.get(key);
+      if (!actual) {
+        map.set(key, {
+          tela: item.tela,
+          precioLista: item.precioLista,
+          precioNegociado: item.precioNegociado,
+          rollos: [item.rollo],
+          metrosSubtotal: Number(item.rollo.metraje),
+          subtotalSoles: item.subtotal,
+        });
+      } else {
+        actual.rollos.push(item.rollo);
+        actual.metrosSubtotal += Number(item.rollo.metraje);
+        actual.subtotalSoles += item.subtotal;
+      }
+    });
+
+    return Array.from(map.values());
+  }, [rollosSeleccionadosDetalle]);
+
+  // Clientes filtrados en el modal selector
+  const clientesFiltradosModal = useMemo(() => {
+    const q = busquedaClienteModal.trim().toLowerCase();
+    if (!q) return clientes;
+    return clientes.filter(
+      (c) =>
+        c.razon_social.toLowerCase().includes(q) ||
+        c.ruc.toLowerCase().includes(q) ||
+        (c.nombre_contacto && c.nombre_contacto.toLowerCase().includes(q))
+    );
+  }, [clientes, busquedaClienteModal]);
+
+  const seleccionarClienteDeCartera = (c: Cliente) => {
+    setSelectedClienteId(c.id);
+    setClienteNombre(c.razon_social);
+    setClienteRuc(c.ruc);
+    setClienteTelefono(c.telefonos || '');
+    setClienteCorreo(c.correos || '');
+    setClienteDireccion(c.direccion || '');
+    setIsModalClientesOpen(false);
+    mostrarToastCalle('Cliente asignado');
+  };
+
+  // Acciones de Cierre: WhatsApp, Correo, Imprimir y Confirmar Orden en Supabase
+  const enviarPorWhatsApp = (codigoOrdenCustom?: string) => {
+    const orden =
+      codigoOrdenCustom ||
+      pedidoExitoso?.pedido.codigo_pedido ||
+      `PED-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let desglose = '';
+    rollosSeleccionadosDetalle.forEach((item) => {
+      desglose += `• ${item.rollo.codigo_rollo} (${item.tela.color}): ${item.rollo.metraje.toFixed(
+        2
+      )}m x S/${item.precioNegociado.toFixed(2)} = S/${item.subtotal.toFixed(2)}\n`;
+    });
+
+    // Si ya se confirmó el pedido y se limpió el carrito, usar el detalle del pedido exitoso
+    let metrosFinal = totalMetros;
+    let solesFinal = totalSoles;
+    let rollosCountFinal = totalRollos;
+
+    if (rollosSeleccionadosDetalle.length === 0 && pedidoExitoso) {
+      metrosFinal = pedidoExitoso.pedido.total_metros;
+      solesFinal = pedidoExitoso.pedido.total_importe;
+      rollosCountFinal = pedidoExitoso.pedido.total_rollos;
+      desglose = pedidoExitoso.pedido.detalles
+        .map(
+          (d) =>
+            `• ${d.codigo_rollo} (${d.tela_color}): ${d.metraje.toFixed(
+              2
+            )}m x S/${d.precio_metro.toFixed(2)} = S/${d.subtotal.toFixed(2)}`
+        )
+        .join('\n');
+    }
+
+    const textoCondicion =
+      condicionPago === 'CREDITO'
+        ? `CRÉDITO (${numeroLetras} letras de S/${(solesFinal / numeroLetras).toFixed(2)})`
+        : 'CONTADO';
+
+    const mensaje = `*8TEX · TEXTILES OCHO LUKAL*\n_PERÚ | Donde nacen las futuras tendencias_\n\n*ORDEN DE PEDIDO:* ${orden}\n*CLIENTE:* ${clienteNombre}\n*RUC:* ${clienteRuc}\n*CONDICIÓN:* ${textoCondicion}\n\n*ROLLOS SELECCIONADOS (${rollosCountFinal}):*\n${desglose}\n*TOTAL METRAJE:* ${metrosFinal.toFixed(
+      2
+    )} m\n*TOTAL A PAGAR:* S/ ${solesFinal.toFixed(
+      2
+    )}\n\n_Comprobante preliminar emitido en calle sujeto a validación de créditos/almacén._`;
+
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`, '_blank');
+  };
+
+  const enviarPorCorreo = () => {
+    const orden = `PED-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const email = (clienteCorreo || 'ventas@ochotex.pe').split(',')[0].trim();
+    const asunto = `Orden de Pedido ${orden} - Textiles Ocho Lukal (8tex)`;
+
+    let itemsTxt = '';
+    rollosSeleccionadosDetalle.forEach((item) => {
+      itemsTxt += `- Rollo: ${item.rollo.codigo_rollo} | Tela: ${item.tela.nombre} (${
+        item.tela.color
+      }) | Metros: ${item.rollo.metraje.toFixed(2)}m | Precio/m: S/ ${item.precioNegociado.toFixed(
+        2
+      )} | Subtotal: S/ ${item.subtotal.toFixed(2)}\n`;
+    });
+
+    const cuerpo = `Estimados ${clienteNombre},\n\nAdjuntamos el detalle de su orden de pedido levantada con 8tex:\n\nOrden: ${orden}\nRUC: ${clienteRuc}\nCondición de Pago: ${condicionPago} ${
+      condicionPago === 'CREDITO' ? `(${numeroLetras} letras)` : ''
+    }\n\nDetalle de Rollos Físicos:\n${itemsTxt}\nMetraje Total: ${totalMetros.toFixed(
+      2
+    )} m\nImporte Total: S/ ${totalSoles.toFixed(
+      2
+    )}\n\nAtentamente,\nEquipo Comercial 8tex\nDonde nacen las futuras tendencias`;
+
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
+      asunto
+    )}&body=${encodeURIComponent(cuerpo)}`;
+    mostrarToastCalle('Abriendo cliente de correo...');
+  };
+
+  const imprimirPedido = () => {
+    window.print();
+  };
+
+  const confirmarOrdenDesdeCarrito = () => {
+    if (rollosSeleccionadosDetalle.length === 0) {
+      mostrarToastCalle('Selecciona al menos 1 rollo');
       return;
     }
 
     if (!clienteNombre.trim()) {
-      setErrorMsg('Ingrese el Nombre o Razón Social del cliente.');
+      mostrarToastCalle('Selecciona o escribe la Razón Social del cliente');
       return;
     }
 
+    const obsCondicion =
+      condicionPago === 'CREDITO'
+        ? `CRÉDITO (${numeroLetras} Letras - ${numeroLetras * 30} días) · Cuota aprox: S/ ${montoPorLetra.toFixed(
+            2
+          )}`
+        : 'CONTADO';
+
+    const obsRegla = requiereAprobacionJefeVentas
+      ? 'Requiere autorización J. Ventas (precio rebajado a crédito)'
+      : 'Pasa directo a Créditos';
+
+    const observacionesFinales = [
+      obsCondicion,
+      obsRegla,
+      clienteDireccion ? `Dir: ${clienteDireccion}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
     try {
       const nuevoPedido = inventoryStore.crearOrdenPedido({
-        cliente_nombre: clienteNombre,
-        cliente_documento: clienteDocumento,
-        cliente_telefono: clienteTelefono,
-        observaciones,
-        registrado_por: registradoPor,
-        items: cart.map((item) => ({
+        cliente_nombre: clienteNombre.trim(),
+        cliente_documento: clienteRuc.trim() || 'S/D',
+        cliente_telefono: clienteTelefono.trim() || undefined,
+        observaciones: observacionesFinales,
+        registrado_por: defaultRegistradoPor || 'Ventas 8tex',
+        items: rollosSeleccionadosDetalle.map((item) => ({
           rollo_id: item.rollo.id,
-          precio_metro: item.precio_metro,
+          precio_metro: item.precioNegociado,
         })),
       });
 
-      setPedidoReciente(nuevoPedido);
-      setCart([]);
+      setIsCarritoOpen(false);
+      setPedidoExitoso({
+        pedido: nuevoPedido,
+        condicion: condicionPago,
+        letras: numeroLetras,
+        requiereAutorizacionJefe: requiereAprobacionJefeVentas,
+      });
+      setRollosSeleccionadosIds([]);
       onPedidoCreado(nuevoPedido);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al generar la orden de pedido';
-      setErrorMsg(msg);
+      alert(err instanceof Error ? err.message : 'Error al registrar el pedido');
     }
   };
 
+  const iniciarNuevoPedidoCalle = () => {
+    setPedidoExitoso(null);
+    setRollosSeleccionadosIds([]);
+    mostrarToastCalle('Listo para nuevo pedido');
+  };
+
+  const labelLetrasMap: Record<number, string> = {
+    1: '1 Letra (30 días)',
+    2: '2 Letras (30 / 60 días)',
+    3: '3 Letras (30 / 60 / 90 días)',
+    4: '4 Letras (30 / 60 / 90 / 120 días)',
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header estilo Google / Steve Jobs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
-            <ShoppingCart className="w-7 h-7 text-[#1a73e8]" />
-            <span>Punto de Venta (POS) & Armado de Pedidos</span>
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Paso 1: Consulta de stock disponible · Paso 2: Selección de rollos físicos y cotización · Paso 3: Generación de Orden de Pedido.
-          </p>
-        </div>
-
-        <button
-          onClick={onIrAPedidosPendientes}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs self-start sm:self-center cursor-pointer"
-        >
-          <Clock className="w-4 h-4 text-[#1a73e8]" />
-          <span>Ver Pedidos Pendientes</span>
-        </button>
-      </div>
-
-      {/* Alerta de Pedido Creado con Éxito */}
-      {pedidoReciente && (
-        <div className="p-5 bg-[#e8f0fe] border border-blue-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-2xs animate-in fade-in">
-          <div className="flex items-start gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Check className="w-5 h-5" />
+    <div className="max-w-3xl mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md pb-28 select-none">
+      {/* ================= TOP APP BAR FIJO (LOGO + LEMA + BUSCADOR) ================= */}
+      <header className="sticky top-0 z-30 bg-[#0B2144] text-white shadow-md border-b border-blue-900/50 print:hidden">
+        <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-md border border-white/20">
+              8t
             </div>
             <div>
-              <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <span>Orden de Pedido {pedidoReciente.codigo_pedido} Generada</span>
-                <span className="text-[11px] font-mono font-bold text-[#1a73e8] bg-white px-2 py-0.5 rounded-full border border-blue-200">
-                  RESERVADO
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black tracking-widest text-white">8TEX</span>
+                <span className="text-[9px] bg-blue-500/20 text-blue-300 font-bold px-1.5 py-0.5 rounded border border-blue-400/30">
+                  CALLE / POS
                 </span>
               </div>
-              <p className="text-slate-700 mt-1 text-xs">
-                Cliente: <strong className="text-slate-900">{pedidoReciente.cliente_nombre}</strong> · {pedidoReciente.total_rollos} rollos (
-                {pedidoReciente.total_metros.toFixed(2)} m) · Total: <strong className="text-slate-900 font-mono">S/. {pedidoReciente.total_importe.toFixed(2)}</strong>.
-              </p>
-              <p className="text-slate-500 text-[11px] mt-0.5">
-                * Los rollos físicos han quedado en estado <strong>RESERVADO</strong>. Pasa a la sección de pedidos para ingresar el número de Factura y Guía SUNAT.
+              <p className="text-[10px] text-blue-200 font-medium">
+                PERÚ | Donde nacen las futuras tendencias
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => window.print()}
-              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl font-medium flex items-center gap-1.5 whitespace-nowrap shadow-2xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Imprimir Nota</span>
-            </button>
-            <button
+              type="button"
               onClick={onIrAPedidosPendientes}
-              className="px-4 py-2 bg-[#1a73e8] hover:bg-[#1557b0] text-white font-bold rounded-xl flex items-center gap-1.5 whitespace-nowrap shadow-xs active:scale-98"
+              className="px-2.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-blue-200 border border-white/10 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition cursor-pointer"
+              title="Ver Pedidos Pendientes"
             >
-              <span>Ir a Facturar</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Pedidos</span>
+            </button>
+
+            {/* Botón Carrito Flotante Directo */}
+            <button
+              type="button"
+              onClick={() => {
+                if (totalRollos === 0) {
+                  mostrarToastCalle('Selecciona al menos 1 rollo');
+                } else {
+                  setIsCarritoOpen(true);
+                }
+              }}
+              className="relative w-10 h-10 rounded-2xl bg-blue-600/50 hover:bg-blue-600 text-white flex items-center justify-center active:scale-95 transition border border-white/20 shadow-xs cursor-pointer"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {totalRollos > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md border-2 border-[#0B2144]">
+                  {totalRollos}
+                </span>
+              )}
             </button>
           </div>
         </div>
-      )}
 
-      {errorMsg && (
-        <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* Grid Principal: Stock Disponible a la Izquierda / Armado de Pedido a la Derecha */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* PANEL IZQUIERDO: Explorador de Stock en Tiempo Real */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Warehouse className="w-4 h-4 text-[#1a73e8]" />
-                  <span>1. Explorador de Stock Físico Disponible</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Visualiza primero el stock y selecciona los rollos para cotizar.
-                </p>
-              </div>
-
-              <div className="text-xs font-mono text-slate-600">
-                <span className="text-slate-900 font-bold">{rollosDisponibles.length}</span> rollos disponibles
-              </div>
-            </div>
-
-            {/* Filtros de Telas y Buscador tipo Google */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Filtrar por Artículo / Tela:
-                </label>
-                <select
-                  value={selectedTelaId}
-                  onChange={(e) => setSelectedTelaId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all font-medium"
-                >
-                  <option value="ALL">Todas las Telas en Stock ({telas.length})</option>
-                  {telas.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.codigo} · {t.nombre} - Cód. Color {t.codigo_color || 'S/N'} ({t.linea || 'General'} · Ancho: {t.ancho || 1.5}m)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Buscar por rollo, tela, color, cód., metros, lote o ubicación:
-                </label>
-                <form onSubmit={handleScanOrDirectCode} className="relative">
-                  <ScanBarcode className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchRollQuery}
-                    onChange={(e) => {
-                      setSearchRollQuery(e.target.value);
-                      if (errorMsg) setErrorMsg(null);
-                    }}
-                    placeholder="Ej. ROL-..., 4150, Silka, 60.00, LOT-2026, Estante A..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-16 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all"
-                  />
-                  <button
-                    type="submit"
-                    className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg transition-colors cursor-pointer"
-                    title="Agregar rollo filtrado al pedido"
-                  >
-                    Agregar
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            {/* Sugerencia FIFO de rotación */}
-            {selectedTelaId !== 'ALL' && (
-              <div className="flex items-center justify-between text-xs bg-[#e8f0fe]/60 p-3 rounded-xl border border-blue-200">
-                <span className="text-slate-700 flex items-center gap-1.5 font-medium">
-                  <Clock className="w-4 h-4 text-[#1a73e8]" />
-                  <span>Sugerencia FIFO por Antigüedad:</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleAddFirstFIFO(selectedTelaId)}
-                  className="px-3 py-1 text-xs bg-white hover:bg-blue-50 text-[#1967d2] border border-blue-300 font-semibold rounded-lg transition-all shadow-2xs"
-                >
-                  + Agregar Rollo Más Antiguo (FIFO)
-                </button>
-              </div>
+        {/* Buscador Gigante para el Pulgar */}
+        <div className="px-4 pb-3 pt-1">
+          <form onSubmit={handleBuscadorSubmit} className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={busquedaTexto}
+              onChange={(e) => setBusquedaTexto(e.target.value)}
+              placeholder="Buscar por artículo, color o rollo (ej: C-900, Silka, 4150, ROL-...)..."
+              className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-10 pr-10 py-3 text-xs sm:text-sm font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+            />
+            {busquedaTexto && (
+              <button
+                type="button"
+                onClick={() => setBusquedaTexto('')}
+                className="absolute right-3 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
             )}
+          </form>
 
-            {/* Listado de Rollos Disponibles */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-600 font-semibold">
-                    <tr>
-                      <th className="py-2.5 px-3">Código Rollo</th>
-                      <th className="py-2.5 px-3">Artículo y Color</th>
-                      <th className="py-2.5 px-3 text-right">Metros</th>
-                      <th className="py-2.5 px-3">Ubicación / Lote</th>
-                      <th className="py-2.5 px-3 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {rollosFiltrados.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-12 text-center text-slate-400 font-sans">
-                          No hay rollos disponibles con los filtros aplicados.
-                        </td>
-                      </tr>
-                    ) : (
-                      rollosFiltrados.map((rollo) => (
-                        <tr key={rollo.id} className="hover:bg-blue-50/40 transition-colors">
-                          <td className="py-2.5 px-3 font-bold text-[#1a73e8]">
-                            {rollo.codigo_rollo}
-                          </td>
-                          <td className="py-2.5 px-3 font-sans">
-                            <div className="font-semibold text-slate-900 truncate max-w-[170px]">
-                              {rollo.tela_nombre}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              Cód. {rollo.tela_codigo_color || '00'} · {rollo.tela_color} ({rollo.tela_codigo})
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-900 tabular-nums text-sm whitespace-nowrap">
-                            {rollo.metraje.toFixed(2)} m
-                          </td>
-                          <td className="py-2.5 px-3 font-sans text-slate-600 text-[11px]">
-                            <div>{rollo.ubicacion || 'Central'}</div>
-                            <div className="text-slate-400 font-mono">{rollo.lote}</div>
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-sans">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleAddToCart(rollo)}
-                                className="px-3 py-1.5 text-xs bg-[#1a73e8] hover:bg-[#1557b0] text-white font-semibold rounded-xl transition-all whitespace-nowrap shadow-2xs hover:shadow-xs active:scale-98 cursor-pointer"
-                              >
-                                + Seleccionar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRolloFromStock(rollo)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Eliminar rollo del inventario"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {/* Filtro Rápido por Línea */}
+          <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setLineaFiltro('TODAS')}
+              className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
+                lineaFiltro === 'TODAS'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              Todas las Líneas
+            </button>
+            {lineasDisponibles.map((linea) => {
+              const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
+              return (
+                <button
+                  key={linea}
+                  type="button"
+                  onClick={() => setLineaFiltro(linea)}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                    activa
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  {linea}
+                </button>
+              );
+            })}
           </div>
         </div>
+      </header>
 
-        {/* PANEL DERECHO: Cuadros de Entrada estilo Steve Jobs para Armado de Pedido */}
-        <div className="lg:col-span-5 space-y-4">
-          <form
-            onSubmit={handleCrearPedido}
-            className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between space-y-5 shadow-2xs"
+      {/* ================= SECCIÓN RÁPIDA DE CLIENTE & CONDICIÓN ================= */}
+      <section className="p-3.5 bg-white border-b border-slate-200/90 shadow-2xs space-y-2.5 print:hidden">
+        {/* Fila Cliente Activo */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-base shrink-0 border border-blue-200">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Cliente Asignado
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsModalClientesOpen(true)}
+                className="text-xs sm:text-sm font-black text-slate-900 truncate hover:text-blue-700 flex items-center gap-1 text-left cursor-pointer"
+              >
+                <span className="truncate">{clienteNombre || 'Seleccionar Cliente...'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              </button>
+            </div>
+          </div>
+
+          {/* Chip RUC */}
+          <button
+            type="button"
+            onClick={() => setIsModalClientesOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-[11px] font-mono font-bold shrink-0 border border-slate-200 active:scale-95 transition cursor-pointer"
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#1a73e8]" />
-                  <span>2. Armado de la Orden de Pedido</span>
-                </h2>
-                <span className="text-xs font-mono font-bold bg-[#e8f0fe] text-[#1967d2] px-2.5 py-0.5 rounded-full">
-                  {cart.length} rollos
+            {clienteRuc || 'Elegir RUC'}
+          </button>
+        </div>
+
+        {/* Selector Contado / Crédito y Letras Dinámicas */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCondicionPago('CONTADO')}
+              className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 active:scale-96 cursor-pointer ${
+                condicionPago === 'CONTADO'
+                  ? 'font-black bg-emerald-600 text-white shadow-xs'
+                  : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span>Contado</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCondicionPago('CREDITO')}
+              className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 active:scale-96 cursor-pointer ${
+                condicionPago === 'CREDITO'
+                  ? 'font-black bg-amber-600 text-white shadow-xs'
+                  : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+              }`}
+            >
+              <CalendarCheck className="w-4 h-4" />
+              <span>Crédito</span>
+            </button>
+          </div>
+
+          {/* Selector de Letras (Solo visible en Crédito) */}
+          {condicionPago === 'CREDITO' && (
+            <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-extrabold text-amber-950 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Plazo de Financiamiento (Letras):</span>
+                </span>
+                <span className="font-black text-amber-800 text-[11px] font-mono">
+                  {labelLetrasMap[numeroLetras]}
                 </span>
               </div>
 
-              {/* Datos del Cliente: Selector de Directorio + Campos Editables */}
-              <div className="space-y-3 text-xs">
-                <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-[#1a73e8]" />
-                      <span>Seleccionar Cliente Registrado:</span>
-                    </label>
-                    {onIrAClientes && (
-                      <button
-                        type="button"
-                        onClick={onIrAClientes}
-                        className="text-[11px] font-bold text-[#1a73e8] hover:underline flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Nuevo Cliente</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <select
-                    value={selectedClienteId}
-                    onChange={(e) => handleSelectClienteDirectorio(e.target.value)}
-                    className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all cursor-pointer"
+              <div className="grid grid-cols-4 gap-1.5 text-xs">
+                {([1, 2, 3, 4] as const).map((cant) => (
+                  <button
+                    key={cant}
+                    type="button"
+                    onClick={() => setNumeroLetras(cant)}
+                    className={`py-2 rounded-xl text-[11px] text-center transition cursor-pointer ${
+                      numeroLetras === cant
+                        ? 'font-black bg-amber-600 text-white shadow-xs'
+                        : 'font-bold bg-white border border-amber-300 text-amber-900'
+                    }`}
                   >
-                    <option value="">
-                      -- Seleccionar de la lista de Clientes ({clientes.length}) o escribir abajo --
-                    </option>
-                    {clientes.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.razon_social} — RUC: {c.ruc}
-                        {c.nombre_contacto ? ` (${c.nombre_contacto})` : ''}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedClienteId && (() => {
-                    const cli = clientes.find((c) => c.id === selectedClienteId);
-                    if (!cli) return null;
-                    return (
-                      <div className="text-[11px] text-slate-600 bg-white/90 rounded-lg p-2 border border-blue-100 space-y-0.5">
-                        {cli.nombre_contacto && (
-                          <div>
-                            <strong className="text-slate-800">Contacto:</strong> {cli.nombre_contacto}
-                          </div>
-                        )}
-                        {cli.correos && (
-                          <div>
-                            <strong className="text-slate-800">Correo:</strong> {cli.correos}
-                          </div>
-                        )}
-                        {cli.direccion && (
-                          <div>
-                            <strong className="text-slate-800">Dirección:</strong> {cli.direccion}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Cliente / Razón Social *
-                  </label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Ej. Confecciones Gamarra Moda S.A.C."
-                      value={clienteNombre}
-                      onChange={(e) => setClienteNombre(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all font-medium"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      RUC o DNI
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. 20601234567"
-                      value={clienteDocumento}
-                      onChange={(e) => setClienteDocumento(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Teléfono Contacto
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. 998 123 456"
-                      value={clienteTelefono}
-                      onChange={(e) => setClienteTelefono(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Observaciones / Condiciones de Entrega
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Recojo en almacén / Transporte interprovincial"
-                    value={observaciones}
-                    onChange={(e) => setObservaciones(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1a73e8] focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all"
-                  />
-                </div>
+                    {cant}L ({cant * 30}d)
+                  </button>
+                ))}
               </div>
 
-              {/* Lista de Rollos en el Pedido */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                  <span>Rollos en el Pedido:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-slate-500">
-                      {totalMetrosPedido.toFixed(2)} m total
-                    </span>
-                    {cart.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearCart}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
-                        title="Quitar todos los rollos seleccionados"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>Vaciar</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+              <div className="text-[11px] text-amber-900 font-semibold flex items-center justify-between pt-1 border-t border-amber-200/70">
+                <span>Monto por letra estimado:</span>
+                <strong className="font-black font-mono text-xs text-amber-950">
+                  S/ {montoPorLetra.toFixed(2)} / letra ({numeroLetras}L)
+                </strong>
+              </div>
+            </div>
+          )}
 
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {cart.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl bg-slate-50">
-                      Selecciona rollos disponibles del inventario físico a la izquierda para armar la orden.
-                    </div>
-                  ) : (
-                    cart.map((item) => {
-                      const subtotal = Number(item.rollo.metraje) * item.precio_metro;
-                      return (
-                        <div
-                          key={item.rollo.id}
-                          className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="font-mono font-bold text-[#1a73e8]">
-                                {item.rollo.codigo_rollo}
-                              </div>
-                              <div className="font-semibold text-slate-900">
-                                {item.rollo.tela_nombre}
-                              </div>
-                              <div className="text-[11px] text-slate-500">
-                                Cód. {item.rollo.tela_codigo_color || '00'} · {item.rollo.tela_color} · {item.rollo.metraje.toFixed(2)} m
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFromCart(item.rollo.id)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0"
-                              title="Quitar rollo del pedido"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Quitar</span>
-                            </button>
-                          </div>
+          {/* Badge de Regla Comercial Dinámica Global (HU-010 / HU-019) */}
+          <div
+            className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl border transition ${
+              !requiereAprobacionJefeVentas
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-amber-50 text-amber-900 border-amber-300'
+            }`}
+          >
+            {!requiereAprobacionJefeVentas ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+            )}
+            <span>
+              {condicionPago === 'CONTADO'
+                ? 'Venta al Contado: Pasa directo a Créditos / Facturación'
+                : !algunPrecioRebajado
+                ? 'Precios oficiales respetados: Pasa directo a Créditos'
+                : 'Requiere aprobación de Jefatura de Ventas (Crédito con precio menor al de lista)'}
+            </span>
+          </div>
+        </div>
+      </section>
 
-                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-slate-600 font-medium">S/. / m:</span>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                value={item.precio_metro}
-                                onChange={(e) =>
-                                  handleUpdatePrice(item.rollo.id, parseFloat(e.target.value) || 0)
-                                }
-                                className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 text-right focus:outline-none focus:border-[#1a73e8] focus:ring-2 focus:ring-blue-100"
-                              />
-                            </div>
+      {/* ================= LISTA JERÁRQUICA: LÍNEA > ARTÍCULO > COLORES > ROLLOS ================= */}
+      <main className="p-3 sm:p-4 space-y-3.5 print:hidden">
+        {catalogoFiltrado.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 text-center text-slate-400 space-y-2 border border-slate-200 shadow-2xs">
+            <Search className="w-8 h-8 text-slate-300 mx-auto" />
+            <p className="text-xs font-bold text-slate-600">
+              No encontramos telas o rollos con ese criterio de búsqueda.
+            </p>
+          </div>
+        ) : (
+          catalogoFiltrado.map((grupoLinea) => (
+            <section key={grupoLinea.linea} className="space-y-3">
+              {/* Etiqueta de la Línea */}
+              <div className="flex items-center gap-2 px-1 pt-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
+                  {grupoLinea.linea}
+                </h2>
+              </div>
 
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-500 mr-1">Subtotal:</span>
-                              <strong className="font-mono text-slate-900 text-xs font-bold">
-                                S/. {subtotal.toFixed(2)}
-                              </strong>
-                            </div>
+              {/* Artículos dentro de esta Línea */}
+              {grupoLinea.articulos.map((art) => {
+                const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
+
+                let metrosTotalesArt = 0;
+                let rollosTotalesArt = 0;
+                art.colores.forEach((c) => {
+                  metrosTotalesArt += c.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+                  rollosTotalesArt += c.rollos.length;
+                });
+
+                return (
+                  <article
+                    key={`${grupoLinea.linea}_${art.codigoArticulo}`}
+                    className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden transition"
+                  >
+                    {/* Encabezado de Artículo (Acordeón) */}
+                    <div
+                      onClick={() => toggleArticulo(art.codigoArticulo)}
+                      className="p-3.5 bg-slate-50/80 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-100"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="px-2.5 h-8 rounded-xl bg-blue-100 text-blue-800 font-mono text-xs font-black flex items-center justify-center shrink-0 border border-blue-200">
+                          {art.codigoArticulo}
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="text-xs sm:text-sm font-black text-slate-900 truncate leading-snug">
+                            {art.nombreBase}
+                          </h3>
+                          <p className="text-[10px] text-slate-400 font-bold">
+                            {art.colores.length}{' '}
+                            {art.colores.length === 1 ? 'color disponible' : 'colores disponibles'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs sm:text-sm font-black text-slate-900 font-mono">
+                            {metrosTotalesArt.toFixed(2)}{' '}
+                            <span className="text-[10px] text-blue-600 font-bold font-sans">m</span>
+                          </span>
+                          <div className="text-[10px] font-bold text-slate-500">
+                            {rollosTotalesArt} {rollosTotalesArt === 1 ? 'rollo' : 'rollos'}
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                        <div
+                          className={`w-7 h-7 rounded-xl bg-slate-200/60 flex items-center justify-center text-slate-600 text-xs transition-transform ${
+                            abiertoArt ? 'rotate-180 bg-blue-50 text-blue-700' : ''
+                          }`}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lista Desplegable de Colores */}
+                    {abiertoArt && (
+                      <div className="divide-y divide-slate-100 p-2 space-y-2">
+                        {art.colores.map((col, idxColor) => {
+                          const totalMetrosColor = col.rollos.reduce(
+                            (acc, r) => acc + Number(r.metraje),
+                            0
+                          );
+                          const rollosCount = col.rollos.length;
+                          const tieneStock = rollosCount > 0;
+                          const abiertoColor =
+                            coloresAbiertos[col.tela.id] ??
+                            (idxColor === 0 && tieneStock) ??
+                            Boolean(busquedaTexto.trim());
+
+                          const precioNegociadoActual = getPrecioNegociado(col.tela);
+                          const precioRebajado = precioNegociadoActual < col.precioLista;
+
+                          const marcadosColor = col.rollos.filter((r) =>
+                            rollosSeleccionadosIds.includes(r.id)
+                          ).length;
+
+                          return (
+                            <div
+                              key={col.tela.id}
+                              className={`rounded-2xl border transition p-3 space-y-2.5 ${
+                                marcadosColor > 0
+                                  ? 'bg-blue-50/40 border-blue-300 ring-2 ring-blue-500/10'
+                                  : 'bg-white border-slate-100'
+                              }`}
+                            >
+                              {/* Fila Principal del Color (Tocable para ver Rollos) */}
+                              <div
+                                onClick={() => toggleColorDesglose(col.tela.id)}
+                                className={`cursor-pointer flex items-center justify-between gap-2.5 ${
+                                  tieneStock ? '' : 'opacity-60'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="flex flex-col items-center shrink-0">
+                                    <span
+                                      className={`px-2 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border ${
+                                        tieneStock
+                                          ? 'bg-slate-900 text-white border-slate-800'
+                                          : 'bg-slate-200 text-slate-500 border-slate-300'
+                                      }`}
+                                    >
+                                      {col.codigoColor}
+                                    </span>
+                                    <span
+                                      className="w-4 h-1.5 rounded-full mt-1"
+                                      style={{ backgroundColor: col.badgeColor }}
+                                    />
+                                  </div>
+
+                                  <div className="min-w-0">
+                                    <h4 className="text-xs font-black text-slate-800 truncate">
+                                      {col.nombreComercial}
+                                    </h4>
+                                    <p className="text-xs font-extrabold text-blue-700 truncate">
+                                      {col.nombreColor}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="text-right">
+                                    <div
+                                      className={`text-xs font-black font-mono ${
+                                        tieneStock ? 'text-slate-900' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      {totalMetrosColor.toFixed(2)}{' '}
+                                      <span className="text-[10px] text-blue-600 font-bold font-sans">
+                                        m
+                                      </span>
+                                    </div>
+                                    <div
+                                      className={`text-[10px] font-bold ${
+                                        tieneStock ? 'text-emerald-700' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      {tieneStock
+                                        ? `${rollosCount} ${rollosCount === 1 ? 'rollo' : 'rollos'}`
+                                        : 'Agotado'}
+                                    </div>
+                                  </div>
+                                  <div
+                                    className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 text-xs transition-transform ${
+                                      abiertoColor ? 'rotate-180' : ''
+                                    }`}
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* P. METRO INDIVIDUAL PARA ESTE COLOR */}
+                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                                    Precio / Metro Individual:
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-mono text-slate-400">
+                                      Lista: S/ {col.precioLista.toFixed(2)}
+                                    </span>
+                                    {precioRebajado && (
+                                      <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                        Rebaja
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <span className="font-black text-slate-700">S/</span>
+                                  <input
+                                    type="number"
+                                    step="0.10"
+                                    min="0.10"
+                                    value={precioNegociadoActual}
+                                    onChange={(e) =>
+                                      actualizarPrecioColor(col.tela, e.target.value)
+                                    }
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`w-20 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
+                                      precioRebajado
+                                        ? 'border-amber-400 text-amber-900'
+                                        : 'border-blue-400 text-slate-900'
+                                    }`}
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold">/m</span>
+                                </div>
+                              </div>
+
+                              {/* Desglose de Rollos Físicos con Botón '+ Marcar' / '✓ Marcado' (SIN botón de eliminar rollo del inventario) */}
+                              {abiertoColor && (
+                                <div className="space-y-1.5 pt-1">
+                                  {tieneStock ? (
+                                    col.rollos.map((rollo, idx) => {
+                                      const seleccionado = rollosSeleccionadosIds.includes(
+                                        rollo.id
+                                      );
+                                      return (
+                                        <div
+                                          key={rollo.id}
+                                          onClick={() => toggleRolloCalle(rollo)}
+                                          className={`p-2.5 rounded-xl flex items-center justify-between gap-2.5 border transition active:scale-98 cursor-pointer ${
+                                            seleccionado
+                                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                              : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-blue-50/40'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            <span
+                                              className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                                seleccionado
+                                                  ? 'bg-white/20 text-white'
+                                                  : 'bg-white text-slate-600 border border-slate-200'
+                                              }`}
+                                            >
+                                              {idx + 1}
+                                            </span>
+                                            <div className="min-w-0">
+                                              <div
+                                                className={`font-mono text-[10px] font-bold flex items-center gap-1.5 flex-wrap ${
+                                                  seleccionado ? 'text-blue-100' : 'text-slate-500'
+                                                }`}
+                                              >
+                                                <span>{rollo.codigo_rollo}</span>
+                                                {rollo.ubicacion && (
+                                                  <span>· {rollo.ubicacion}</span>
+                                                )}
+                                                {rollo.lote && <span>· {rollo.lote}</span>}
+                                              </div>
+                                              <div
+                                                className={`text-xs font-black font-mono ${
+                                                  seleccionado ? 'text-white' : 'text-slate-900'
+                                                }`}
+                                              >
+                                                {rollo.metraje.toFixed(2)} metros
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            className={`h-8 px-3 rounded-lg text-xs font-black flex items-center gap-1 transition shrink-0 cursor-pointer ${
+                                              seleccionado
+                                                ? 'bg-emerald-500 text-white'
+                                                : 'bg-white text-blue-700 border border-blue-300'
+                                            }`}
+                                          >
+                                            {seleccionado ? (
+                                              <>
+                                                <Check className="w-3.5 h-3.5" />
+                                                <span>Marcado</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Plus className="w-3.5 h-3.5" />
+                                                <span>Marcar</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <p className="text-xs text-slate-400 italic text-center py-1">
+                                      Sin rollos físicos en almacén.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          ))
+        )}
+      </main>
+
+      {/* ================= BARRA PERSISTENTE INFERIOR (PULGAR MÓVIL) ================= */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] print:hidden">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          {/* Resumen en vivo para el vendedor */}
+          <div
+            onClick={() => {
+              if (totalRollos > 0) setIsCarritoOpen(true);
+            }}
+            className="leading-tight cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wide">
+              <span className="text-slate-800">
+                {totalRollos} {totalRollos === 1 ? 'rollo' : 'rollos'}
+              </span>
+              <span>·</span>
+              <span className="text-blue-700 font-black font-mono">
+                {totalMetros.toFixed(2)} m
+              </span>
+            </div>
+            <div className="text-xl font-black text-[#0B2144] flex items-baseline gap-1 font-mono">
+              <span className="text-xs font-bold text-slate-500 font-sans">S/</span>
+              <span>
+                {totalSoles.toLocaleString('es-PE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Botón de Abrir Carrito & Pasarela */}
+          <button
+            type="button"
+            disabled={totalRollos === 0}
+            onClick={() => setIsCarritoOpen(true)}
+            className={`flex-1 max-w-xs py-3.5 px-4 font-black rounded-2xl flex items-center justify-center gap-2 text-xs transition active:scale-96 ${
+              totalRollos > 0
+                ? 'bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/25 cursor-pointer'
+                : 'bg-slate-300 text-slate-500 shadow-2xs cursor-not-allowed'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>{totalRollos > 0 ? `Ver Carrito (${totalRollos})` : 'Selecciona Rollos'}</span>
+          </button>
+        </div>
+      </footer>
+
+      {/* ================= PASARELA DEL CARRITO (BOTTOM SHEET COMPLETO) ================= */}
+      {isCarritoOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150 print:hidden"
+          onClick={() => setIsCarritoOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl border-t sm:border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Manija y Encabezado del Carrito */}
+            <div className="p-4 pb-2 border-b border-slate-100 shrink-0">
+              <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black tracking-widest text-[#0B2144]">8TEX</span>
+                    <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">
+                      PASARELA DE PEDIDO
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Resumen y Desglose de Rollos
+                  </h3>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCarritoOpen(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center active:scale-90 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido Scrolleable del Carrito */}
+            <div className="p-4 overflow-y-auto space-y-3.5 flex-1 divide-y divide-slate-100">
+              {/* Tarjeta Resumen Cliente & Condición */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+                <div className="flex justify-between items-center text-slate-500 gap-2">
+                  <span>Cliente:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCarritoOpen(false);
+                      setIsModalClientesOpen(true);
+                    }}
+                    className="text-slate-900 font-bold truncate max-w-[220px] hover:text-blue-700 underline cursor-pointer"
+                  >
+                    {clienteNombre}
+                  </button>
+                </div>
+                <div className="flex justify-between items-center text-slate-500">
+                  <span>RUC:</span>
+                  <span className="font-mono text-slate-700 font-semibold">{clienteRuc}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                  <span className="font-bold text-slate-600">Condición:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-md font-black text-[11px] ${
+                      condicionPago === 'CONTADO'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {condicionPago === 'CONTADO'
+                      ? 'CONTADO'
+                      : `CRÉDITO (${numeroLetras} LETRAS)`}
+                  </span>
+                </div>
+                {condicionPago === 'CREDITO' && (
+                  <div className="flex justify-between items-center text-amber-900 font-medium pt-1 border-t border-slate-200">
+                    <span>Plan de Letras:</span>
+                    <strong className="font-mono text-xs">
+                      {numeroLetras} letras de S/ {montoPorLetra.toFixed(2)} c/u
+                    </strong>
+                  </div>
+                )}
               </div>
 
-              {/* Resumen Final: Cuadro destacado en azul pastel */}
-              <div className="p-4 bg-[#e8f0fe] border border-blue-200 rounded-2xl space-y-1.5 text-xs shadow-2xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Rollos Físicos:</span>
-                  <strong className="text-slate-900 font-mono font-bold">{cart.length} rollos</strong>
+              {/* Lista Detallada de Ítems en Carrito con Edición de P. Metro */}
+              <div className="space-y-3 pt-2">
+                {gruposEnCarrito.map((grupo) => (
+                  <div
+                    key={grupo.tela.id}
+                    className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                          {grupo.tela.codigo} · {grupo.tela.linea || 'General'}
+                        </span>
+                        <h4 className="font-black text-slate-900 text-xs leading-tight">
+                          {grupo.tela.nombre}
+                        </h4>
+                        <p className="text-[11px] font-bold text-blue-700">
+                          {grupo.tela.codigo_color} · {grupo.tela.color}
+                        </p>
+                      </div>
+
+                      {/* Edición de P. Metro directo en Carrito */}
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className="font-black text-slate-600 text-xs">S/</span>
+                          <input
+                            type="number"
+                            step="0.10"
+                            min="0.10"
+                            value={grupo.precioNegociado}
+                            onChange={(e) => actualizarPrecioColor(grupo.tela, e.target.value)}
+                            className="w-16 text-right font-black text-xs bg-white border border-blue-400 rounded-lg py-1 px-1 focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">/m</span>
+                        </div>
+                        <div className="font-black text-slate-900 text-sm mt-1 font-mono">
+                          S/ {grupo.subtotalSoles.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rollos incluidos (quitar del carrito, NO del inventario) */}
+                    <div className="space-y-1 pt-1 border-t border-slate-200/80">
+                      {grupo.rollos.map((r) => (
+                        <div
+                          key={r.id}
+                          className="flex items-center justify-between text-[11px] text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100"
+                        >
+                          <span className="font-mono font-bold text-slate-700">
+                            {r.codigo_rollo}
+                          </span>
+                          <span className="font-bold font-mono">{r.metraje.toFixed(2)} m</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRollosSeleccionadosIds((prev) => {
+                                const next = prev.filter((id) => id !== r.id);
+                                if (next.length === 0) setIsCarritoOpen(false);
+                                return next;
+                              });
+                            }}
+                            className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
+                            title="Retirar rollo del carrito"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totales Finales */}
+              <div className="pt-3 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-500">
+                  <span>Rollos Físicos Totales:</span>
+                  <strong className="text-slate-800 font-black">{totalRollos} rollos</strong>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Metraje Exacto:</span>
-                  <strong className="text-slate-900 font-mono font-bold">{totalMetrosPedido.toFixed(2)} m</strong>
-                </div>
-                <div className="flex justify-between items-baseline pt-2 border-t border-blue-200/80 text-sm">
-                  <span className="font-bold text-slate-800">Importe Total Orden:</span>
-                  <strong className="text-2xl font-mono font-black text-[#1a73e8] tracking-tight">
-                    S/. {totalImportePedido.toFixed(2)}
+                <div className="flex justify-between text-slate-500">
+                  <span>Metraje Total Exacto:</span>
+                  <strong className="text-blue-800 font-black font-mono">
+                    {totalMetros.toFixed(2)} m
                   </strong>
                 </div>
+                <div className="flex justify-between text-sm font-black text-[#0B2144] pt-2 border-t border-slate-200">
+                  <span>Importe Total:</span>
+                  <span className="text-lg text-blue-900 font-mono">
+                    S/ {totalSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Pasarela de Acciones Rápidas (WhatsApp, Correo, Imprimir) */}
+              <div className="pt-3 space-y-2.5">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">
+                  Acciones Inmediatas de Cierre
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Botón WhatsApp */}
+                  <button
+                    type="button"
+                    onClick={() => enviarPorWhatsApp()}
+                    className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    <span>WhatsApp</span>
+                  </button>
+
+                  {/* Botón Correo */}
+                  <button
+                    type="button"
+                    onClick={enviarPorCorreo}
+                    className="py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                  >
+                    <Mail className="w-5 h-5" />
+                    <span>Por Correo</span>
+                  </button>
+
+                  {/* Botón Imprimir Pedido */}
+                  <button
+                    type="button"
+                    onClick={imprimirPedido}
+                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                  >
+                    <Printer className="w-5 h-5" />
+                    <span>Imprimir</span>
+                  </button>
+                </div>
+
+                {/* Botón Confirmar Orden en Sistema */}
+                <button
+                  type="button"
+                  onClick={confirmarOrdenDesdeCarrito}
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 active:scale-96 transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirmar y Registrar Pedido</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL SELECTOR DE CLIENTE (DE CARTERA O MANUAL) ================= */}
+      {isModalClientesOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150 print:hidden"
+          onClick={() => setIsModalClientesOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto sm:hidden" />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Elegir Cliente de Cartera</h3>
+                <p className="text-[11px] text-slate-500">
+                  Selecciona un cliente registrado o edita los datos abajo
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {onIrAClientes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalClientesOpen(false);
+                      onIrAClientes();
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Nuevo</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsModalClientesOpen(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center active:scale-90 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Botón Principal Steve Jobs */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={busquedaClienteModal}
+                onChange={(e) => setBusquedaClienteModal(e.target.value)}
+                placeholder="Buscar por RUC, Razón Social o Contacto..."
+                className="w-full bg-slate-100 rounded-xl pl-9 pr-3 py-2 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="overflow-y-auto space-y-1.5 flex-1 divide-y divide-slate-100 max-h-56">
+              {clientesFiltradosModal.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No se encontraron clientes en la cartera.
+                </div>
+              ) : (
+                clientesFiltradosModal.map((c) => {
+                  const isSelected = c.id === selectedClienteId;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => seleccionarClienteDeCartera(c)}
+                      className={`w-full text-left p-2.5 hover:bg-slate-50 rounded-xl flex items-center justify-between active:bg-blue-50 transition cursor-pointer ${
+                        isSelected ? 'bg-blue-50/70' : ''
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="text-xs font-black text-slate-800 truncate">
+                          {c.razon_social}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500">
+                          RUC: {c.ruc}
+                          {c.nombre_contacto ? ` · ${c.nombre_contacto}` : ''}
+                        </div>
+                      </div>
+                      <Check
+                        className={`w-4 h-4 shrink-0 ${
+                          isSelected ? 'text-blue-600' : 'text-slate-300'
+                        }`}
+                      />
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Edición rápida manual */}
+            <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Datos del Cliente Activo
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={clienteNombre}
+                  onChange={(e) => setClienteNombre(e.target.value)}
+                  placeholder="Razón Social / Cliente"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={clienteRuc}
+                  onChange={(e) => setClienteRuc(e.target.value)}
+                  placeholder="RUC o DNI"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalClientesOpen(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs cursor-pointer"
+              >
+                Usar este Cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= PANTALLA COMPLETA DE ÉXITO ================= */}
+      {pedidoExitoso && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-150 print:hidden">
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center text-3xl font-black shadow-inner">
+                <Check className="w-8 h-8" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Pedido Generado
+                </span>
+                <h2 className="text-lg font-black text-[#0B2144] mt-0.5 font-mono">
+                  {pedidoExitoso.pedido.codigo_pedido}
+                </h2>
+                <p
+                  className={`text-xs font-bold ${
+                    pedidoExitoso.requiereAutorizacionJefe
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
+                  }`}
+                >
+                  {pedidoExitoso.requiereAutorizacionJefe
+                    ? 'Enviado a Jefatura de Ventas para Autorización'
+                    : 'Aprobado · Pasa directo a Créditos'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-500">
+                <span>Cliente:</span>
+                <strong className="text-slate-800 text-right truncate max-w-[180px]">
+                  {pedidoExitoso.pedido.cliente_nombre}
+                </strong>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Condición:</span>
+                <strong className="text-slate-800 font-bold">
+                  {pedidoExitoso.condicion === 'CREDITO'
+                    ? `Crédito (${pedidoExitoso.letras} letras)`
+                    : 'Contado'}
+                </strong>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Rollos Físicos:</span>
+                <strong className="text-slate-800">
+                  {pedidoExitoso.pedido.total_rollos} rollos
+                </strong>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Metraje Exacto:</span>
+                <strong className="text-blue-800 font-bold font-mono">
+                  {pedidoExitoso.pedido.total_metros.toFixed(2)} m
+                </strong>
+              </div>
+              <div className="flex justify-between pt-1.5 border-t border-slate-200 text-sm font-black text-[#0B2144]">
+                <span>Total Orden:</span>
+                <span className="font-mono">
+                  S/{' '}
+                  {pedidoExitoso.pedido.total_importe.toLocaleString('es-PE', {
+                    minimumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <button
-                type="submit"
-                disabled={cart.length === 0}
-                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 text-xs font-bold text-white bg-[#1a73e8] hover:bg-[#1557b0] disabled:opacity-40 disabled:hover:bg-[#1a73e8] rounded-xl shadow-xs hover:shadow-sm transition-all active:scale-98"
+                type="button"
+                onClick={() => enviarPorWhatsApp(pedidoExitoso.pedido.codigo_pedido)}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-96 transition cursor-pointer"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span>Generar Orden de Pedido ({cart.length} rollos)</span>
+                <MessageCircle className="w-4 h-4" />
+                <span>Compartir por WhatsApp</span>
               </button>
-              <p className="text-[11px] text-center text-slate-400">
-                Al confirmar, el stock pasa a estado RESERVADO. Se emitirá factura y guía en el siguiente paso.
-              </p>
+
+              <button
+                type="button"
+                onClick={onIrAPedidosPendientes}
+                className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-2xl text-xs active:scale-96 transition cursor-pointer"
+              >
+                Ver en Pedidos Pendientes
+              </button>
+
+              <button
+                type="button"
+                onClick={iniciarNuevoPedidoCalle}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl text-xs active:scale-96 transition cursor-pointer"
+              >
+                Tomar Otro Pedido
+              </button>
             </div>
-          </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= COMPROBANTE DE IMPRESIÓN (MEMBRETADO OFICIAL 8TEX) ================= */}
+      <div className="hidden print:block bg-white text-slate-900 p-8 font-sans">
+        <div className="border-b-2 border-blue-900 pb-4 mb-4 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-black text-blue-900 tracking-wider">8TEX</h1>
+            <p className="text-xs font-bold text-slate-500 tracking-widest uppercase">
+              PERÚ | Donde nacen las futuras tendencias
+            </p>
+            <p className="text-xs font-bold text-slate-800 mt-1">
+              TEXTILES OCHO LUKAL E.I.R.L.
+            </p>
+            <p className="text-[10px] text-slate-600">
+              RUC: 20608912345 · Venta Mayorista Textil · Lima, Perú
+            </p>
+          </div>
+          <div className="border-2 border-blue-900 p-3 rounded-lg text-center">
+            <p className="text-xs font-black text-slate-800">ORDEN DE PEDIDO (CALLE)</p>
+            <p className="text-sm font-black text-blue-900 font-mono">
+              {pedidoExitoso?.pedido.codigo_pedido ||
+                `PED-${new Date().getFullYear()}-PRELIMINAR`}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              {new Date().toLocaleDateString('es-PE')}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded border border-slate-200 mb-4">
+          <div>
+            <p>
+              <strong>Cliente:</strong> {clienteNombre}
+            </p>
+            <p>
+              <strong>RUC / DNI:</strong> {clienteRuc}
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>Condición de Pago:</strong> {condicionPago}
+            </p>
+            {condicionPago === 'CREDITO' && (
+              <p>
+                <strong>Financiamiento:</strong> {numeroLetras} letras ({numeroLetras * 30} días)
+              </p>
+            )}
+          </div>
+        </div>
+
+        <table className="w-full text-left text-xs border-collapse mb-4">
+          <thead>
+            <tr className="bg-blue-900 text-white font-bold">
+              <th className="p-2 border">Código Rollo</th>
+              <th className="p-2 border">Línea / Artículo & Color</th>
+              <th className="p-2 border text-right">Metros</th>
+              <th className="p-2 border text-right">P. Metro (S/)</th>
+              <th className="p-2 border text-right">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rollosSeleccionadosDetalle.map((item) => (
+              <tr key={item.rollo.id} className="border-b text-xs">
+                <td className="p-2 border font-mono font-bold">{item.rollo.codigo_rollo}</td>
+                <td className="p-2 border">
+                  {item.tela.codigo} · {item.tela.nombre} ({item.tela.color})
+                </td>
+                <td className="p-2 border text-right font-bold">
+                  {item.rollo.metraje.toFixed(2)} m
+                </td>
+                <td className="p-2 border text-right">S/ {item.precioNegociado.toFixed(2)}</td>
+                <td className="p-2 border text-right font-black">
+                  S/ {item.subtotal.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="flex justify-between items-start text-xs border-t pt-3">
+          <div className="text-[10px] text-slate-600 space-y-1">
+            <p className="font-bold text-slate-800">
+              Cuentas Corrientes Oficiales Textiles Ocho Lukal:
+            </p>
+            <p>• BCP Soles: 191-8849201-0-45 (CCI: 002-191-008849201045-88)</p>
+            <p>• BBVA Soles: 0011-0482-0100084921 (CCI: 011-482-000100084921-23)</p>
+          </div>
+          <div className="w-60 space-y-1 text-right">
+            <p className="text-xs">
+              Total Rollos Físicos: <strong>{totalRollos}</strong>
+            </p>
+            <p className="text-xs">
+              Total Metros Exactos: <strong>{totalMetros.toFixed(2)} m</strong>
+            </p>
+            <p className="text-base font-black text-blue-900 pt-1.5 border-t">
+              TOTAL A PAGAR: S/{' '}
+              {totalSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* ================= NOTIFICACIÓN TOAST RÁPIDA ================= */}
+      {toastMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0B2144] text-white px-4 py-2.5 rounded-2xl shadow-xl border border-blue-400/40 flex items-center gap-2 text-xs font-bold animate-in fade-in duration-150 print:hidden">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
     </div>
   );
 };
