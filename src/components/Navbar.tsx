@@ -53,7 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 border-b border-slate-200 text-slate-900 backdrop-blur-md shadow-2xs print:hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 h-16">
           {/* Zone 1: Brand + DB indicator */}
           <div className="flex items-center gap-2.5 shrink-0">

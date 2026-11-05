@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tela } from '../types/inventory';
-import { inventoryStore } from '../services/inventoryStore';
+import { inventoryStore, normalizeLinea } from '../services/inventoryStore';
 import {
   Layers,
   Plus,
@@ -270,8 +270,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     <div className="font-semibold text-slate-900">{tela.nombre}</div>
                     <div className="text-[11px] text-slate-500">{tela.color}</div>
                   </td>
-                  <td className="py-3.5 px-3 text-slate-700 font-medium">
-                    {tela.linea || 'General'}
+                  <td className="py-3.5 px-3 text-slate-700 font-medium whitespace-nowrap">
+                    {normalizeLinea(tela.linea)}
                   </td>
                   <td className="py-3.5 px-3 text-right font-mono font-extrabold text-emerald-700 tabular-nums whitespace-nowrap">
                     S/. {(Number(tela.precio_lista) || 0).toFixed(2)}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StockConsolidadoTela, RolloConTela } from '../types/inventory';
-import { inventoryStore } from '../services/inventoryStore';
+import { inventoryStore, normalizeLinea } from '../services/inventoryStore';
 import {
   Layers,
   AlertTriangle,
@@ -546,20 +546,20 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
       {/* ================= VISTA ESCRITORIO (TABLA CONSOLIDADA, hidden md:block) ================= */}
       <div className="hidden md:block border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-semibold">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold">
               <tr>
-                <th className="py-3.5 px-3 w-8"></th>
-                <th className="py-3.5 px-3 whitespace-nowrap">Código Artículo</th>
-                <th className="py-3.5 px-3 whitespace-nowrap">Cód. Color</th>
-                <th className="py-3.5 px-3">Nombre Comercial</th>
-                <th className="py-3.5 px-3">Línea</th>
-                <th className="py-3.5 px-3 text-right whitespace-nowrap">Ancho</th>
-                <th className="py-3.5 px-3 text-right whitespace-nowrap">Rollos Disp.</th>
-                <th className="py-3.5 px-3 text-right whitespace-nowrap">Metros Disp.</th>
-                <th className="py-3.5 px-3 text-right whitespace-nowrap">Stock Mínimo</th>
-                <th className="py-3.5 px-3 text-center whitespace-nowrap">Estado</th>
-                <th className="py-3.5 px-3 text-right whitespace-nowrap">Acciones</th>
+                <th className="py-3.5 pl-5 pr-2.5 whitespace-nowrap">Artículo</th>
+                <th className="py-3.5 px-2.5 whitespace-nowrap">Cód. Color</th>
+                <th className="py-3.5 px-3 min-w-[180px]">Nombre Comercial / Color</th>
+                <th className="py-3.5 px-2.5 whitespace-nowrap">Línea</th>
+                <th className="py-3.5 px-2.5 text-right whitespace-nowrap">P. Lista</th>
+                <th className="py-3.5 px-2.5 text-right whitespace-nowrap">Ancho</th>
+                <th className="py-3.5 px-2.5 text-right whitespace-nowrap">Rollos</th>
+                <th className="py-3.5 px-2.5 text-right whitespace-nowrap">Metros Disp.</th>
+                <th className="py-3.5 px-2.5 text-right whitespace-nowrap">Stock Mín.</th>
+                <th className="py-3.5 px-2.5 text-center whitespace-nowrap">Estado</th>
+                <th className="py-3.5 pl-2.5 pr-5 text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -610,91 +610,110 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                       : allRollosFIFO
                     : [];
 
+                  const precioLista = Number(item.precio_lista) || 12.5;
+
                   return (
                     <React.Fragment key={item.tela_id}>
                       <tr
                         className={`hover:bg-blue-50/30 transition-colors ${
-                          item.alerta_reposicion ? 'bg-amber-50/40' : ''
+                          item.alerta_reposicion ? 'bg-amber-50/30' : ''
                         }`}
                       >
-                        <td className="py-3.5 px-3 text-slate-400">
+                        {/* Artículo con flecha integrada (sin columna vacía a la izquierda) */}
+                        <td className="py-3 pl-5 pr-2.5 whitespace-nowrap">
                           <button
                             onClick={() => toggleExpand(item.tela_id)}
-                            className="p-1 hover:text-slate-800 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a73e8] border border-blue-200 font-mono text-xs font-bold transition-colors cursor-pointer"
                             title={
                               isExpanded
-                                ? 'Ocultar rollos'
+                                ? 'Ocultar rollos físicos'
                                 : 'Ver rollos físicos disponibles (FIFO)'
                             }
                           >
                             {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-[#1a73e8]" />
+                              <ChevronDown className="w-3.5 h-3.5 shrink-0" />
                             ) : (
-                              <ChevronRight className="w-4 h-4" />
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                             )}
+                            <span>{item.codigo}</span>
                           </button>
                         </td>
 
-                        <td className="py-3.5 px-3 font-mono text-xs font-bold text-[#1a73e8] whitespace-nowrap">
-                          {item.codigo}
+                        {/* Cód. Color */}
+                        <td className="py-3 px-2.5 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                            {item.codigo_color}
+                          </span>
                         </td>
 
-                        <td className="py-3.5 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
-                          {item.codigo_color}
-                        </td>
-
-                        <td className="py-3.5 px-3 font-semibold text-slate-900">
+                        {/* Nombre Comercial / Color (amplio en 1 línea sin partir palabras) */}
+                        <td className="py-3 px-3">
                           <button
                             onClick={() => toggleExpand(item.tela_id)}
-                            className="text-left hover:text-[#1a73e8] transition-colors cursor-pointer"
+                            className="text-left font-bold text-slate-900 hover:text-[#1a73e8] transition-colors cursor-pointer block whitespace-nowrap"
                           >
                             {item.nombre}
                           </button>
-                          <div className="text-[11px] text-slate-500 font-normal">
+                          <div className="text-[11px] text-blue-700 font-semibold whitespace-nowrap">
                             {item.color}
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-3 text-slate-700 text-xs">
-                          {item.linea || 'General'}
+                        {/* Línea Normalizada */}
+                        <td className="py-3 px-2.5 text-slate-600 text-xs font-medium whitespace-nowrap">
+                          {normalizeLinea(item.linea)}
                         </td>
 
-                        <td className="py-3.5 px-3 text-right font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
+                        {/* Precio de Lista */}
+                        <td className="py-3 px-2.5 text-right font-mono text-xs font-bold text-emerald-700 whitespace-nowrap">
+                          S/ {precioLista.toFixed(2)}
+                        </td>
+
+                        {/* Ancho */}
+                        <td className="py-3 px-2.5 text-right font-mono text-xs text-slate-600 font-medium whitespace-nowrap">
                           {(Number(item.ancho) || 1.5).toFixed(2)} m
                         </td>
 
-                        <td className="py-3.5 px-3 text-right font-mono font-bold tabular-nums text-slate-900 whitespace-nowrap">
+                        {/* Rollos Disponibles */}
+                        <td className="py-3 px-2.5 text-right font-mono font-bold tabular-nums text-slate-900 whitespace-nowrap">
                           {item.total_rollos_disponibles}
                         </td>
 
-                        <td className="py-3.5 px-3 text-right font-mono font-extrabold tabular-nums text-slate-900 text-base whitespace-nowrap">
+                        {/* Metros Disponibles */}
+                        <td className="py-3 px-2.5 text-right font-mono font-extrabold tabular-nums text-slate-900 text-sm whitespace-nowrap">
                           {item.total_metros_disponibles.toFixed(2)}
-                          <span className="text-xs font-normal text-slate-500 ml-1">m</span>
+                          <span className="text-[11px] font-semibold text-blue-600 ml-0.5">m</span>
                         </td>
 
-                        <td className="py-3.5 px-3 text-right font-mono tabular-nums text-slate-500 text-xs whitespace-nowrap">
-                          {item.stock_minimo_alerta.toFixed(2)} m
+                        {/* Stock Mínimo */}
+                        <td className="py-3 px-2.5 text-right font-mono tabular-nums text-slate-500 text-xs whitespace-nowrap">
+                          {item.stock_minimo_alerta.toFixed(0)} m
                         </td>
 
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        {/* Estado */}
+                        <td className="py-3 px-2.5 text-center whitespace-nowrap">
                           {item.alerta_reposicion ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 whitespace-nowrap">
-                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                              <span>Alerta Reposición</span>
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold border border-amber-200 whitespace-nowrap"
+                              title="Stock por debajo del mínimo de reposición"
+                            >
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              <span>Reposición</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold border border-emerald-200 whitespace-nowrap">
-                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-semibold border border-emerald-200 whitespace-nowrap">
+                              <CheckCircle2 className="w-3 h-3 shrink-0" />
                               <span>Óptimo</span>
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                        {/* Acciones completas y visibles */}
+                        <td className="py-3 pl-2.5 pr-5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => toggleExpand(item.tela_id)}
-                              className="px-2.5 py-1 text-xs text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap font-medium cursor-pointer"
+                              className="px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap font-semibold cursor-pointer"
                             >
                               {isExpanded
                                 ? 'Ocultar'
@@ -704,20 +723,20 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                             {item.total_rollos_disponibles > 0 && onArmarPedidoConTela && (
                               <button
                                 onClick={() => onArmarPedidoConTela(item.tela_id)}
-                                className="px-3 py-1 text-xs font-semibold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-lg transition-all whitespace-nowrap shadow-2xs hover:shadow-xs active:scale-98 cursor-pointer"
+                                className="px-2.5 py-1.5 text-xs font-bold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-lg transition-all whitespace-nowrap shadow-2xs cursor-pointer"
                                 title="Armar Pedido en el POS con esta tela"
                               >
-                                + Armar Pedido
+                                + Pedido
                               </button>
                             )}
 
                             {onOpenIngresoConTela && (
                               <button
                                 onClick={() => onOpenIngresoConTela(item.tela_id)}
-                                className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-all whitespace-nowrap shadow-2xs cursor-pointer"
+                                className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-all whitespace-nowrap shadow-2xs cursor-pointer"
                                 title="Ingresar nuevos rollos de esta tela"
                               >
-                                + Ingresar
+                                + Rollos
                               </button>
                             )}
 
