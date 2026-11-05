@@ -323,10 +323,10 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 lg:p-6 overflow-hidden select-none">
       <form
         onSubmit={handleSubmit}
-        className="bg-slate-100 sm:rounded-3xl w-full max-w-2xl h-full sm:h-auto sm:max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200/80 relative animate-in fade-in duration-200"
+        className="bg-slate-100 sm:rounded-3xl w-full max-w-2xl lg:max-w-6xl h-full sm:h-auto sm:max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200/80 relative animate-in fade-in duration-200"
       >
         {/* ================= TOP APP BAR (#0F284E) ================= */}
         <header className="bg-[#0F284E] text-white shadow-md border-b border-blue-900/40 shrink-0 z-20">
@@ -380,8 +380,8 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
 
           {/* ================= 1. CABECERA DESPLEGABLE (SUNAT & ALMACÉN) ================= */}
           {cabeceraAbierta && (
-            <div className="bg-[#0A1E3C] px-4 py-3.5 border-t border-blue-900/60 space-y-2.5 text-xs transition-all">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="bg-[#0A1E3C] px-4 lg:px-6 py-3.5 lg:py-4 border-t border-blue-900/60 text-xs transition-all">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 lg:gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-slate-300 mb-1">
                     Motivo de Ingreso *
@@ -409,9 +409,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     className="w-full bg-slate-900/90 text-white placeholder-slate-500 rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none font-mono text-xs"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-medium text-slate-300 mb-1">
                     Proveedor / Origen *
@@ -437,9 +435,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     className="w-full bg-slate-900/90 text-white placeholder-slate-500 rounded-xl p-2.5 border border-slate-700 focus:border-blue-400 focus:outline-none font-mono text-xs"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
                 <div>
                   <label className="block text-[11px] font-medium text-slate-400 mb-1">
                     Registrado Por (Responsable)
@@ -448,7 +444,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     type="text"
                     value={registradoPor}
                     onChange={(e) => setRegistradoPor(e.target.value)}
-                    className="w-full bg-slate-900/70 text-slate-200 rounded-xl p-2 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
+                    className="w-full bg-slate-900/70 text-slate-200 rounded-xl p-2.5 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
                   />
                 </div>
 
@@ -461,7 +457,7 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
                     placeholder="Opcional: Rollos sellados en polietileno..."
-                    className="w-full bg-slate-900/70 text-slate-200 placeholder-slate-500 rounded-xl p-2 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
+                    className="w-full bg-slate-900/70 text-slate-200 placeholder-slate-500 rounded-xl p-2.5 border border-slate-800 focus:border-blue-400 focus:outline-none text-xs"
                   />
                 </div>
               </div>
@@ -521,11 +517,23 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
           </div>
         )}
 
-        {/* ================= CONTENEDOR DE TARJETAS DE ROLLOS ================= */}
+        {/* ================= CONTENEDOR DE ROLLOS (TARJETAS EN CELULAR / FILAS AMPLIAS EN PC) ================= */}
         <div
           ref={listContainerRef}
-          className="flex-1 overflow-y-auto p-3.5 space-y-3"
+          className="flex-1 overflow-y-auto p-3.5 lg:p-5 space-y-3"
         >
+          {/* Cabecera de Columnas visible solo en Computadora (lg:) */}
+          <div className="hidden lg:grid lg:grid-cols-12 lg:gap-3 px-4 py-2 bg-slate-200/70 rounded-xl text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+            <div className="col-span-2">Código Rollo (QR)</div>
+            <div className="col-span-4">Tela / Variante de Color</div>
+            <div className="col-span-2 text-center">Metros Exactos *</div>
+            <div className="col-span-2">Lote / DUA *</div>
+            <div className="col-span-2 flex items-center justify-between">
+              <span>Ubicación Almacén</span>
+              <span>Acciones</span>
+            </div>
+          </div>
+
           {rollos.map((r, index) => {
             const tela = telas.find((t) => t.id === r.tela_id) || telas[0];
             const dotClass = getColorBadgeClass(tela?.color);
@@ -533,26 +541,218 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
             return (
               <article
                 key={r.id}
-                className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-xs relative space-y-2.5 transition hover:border-blue-300"
+                className="bg-white rounded-2xl p-3.5 lg:px-4 lg:py-3 border border-slate-200/90 shadow-xs relative transition hover:border-blue-300"
               >
-                {/* Fila Superior: # Rollo, Selector Rápido de Tela y Acciones */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {/* ================= VISTA CELULAR / TABLET (< lg) ================= */}
+                <div className="lg:hidden space-y-2.5">
+                  {/* Fila Superior: # Rollo, Selector Rápido de Tela y Acciones */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0 border border-slate-200">
+                        {index + 1}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBusquedaTela('');
+                          setRolloEditandoTelaId(r.id);
+                        }}
+                        className="text-left py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                      >
+                        <span
+                          className={`w-3 h-3 rounded-full ${dotClass} shrink-0 shadow-2xs`}
+                        />
+                        {tela ? (
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {tela.codigo} · {tela.nombre}
+                            </div>
+                            <div className="text-[11px] text-blue-700 font-semibold truncate">
+                              Cód. {tela.codigo_color || 'S/N'} - {tela.color || 'Estándar'}{' '}
+                              <span className="text-slate-400 font-normal">
+                                ({tela.linea || 'General'} · {tela.ancho || 1.5}m)
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs font-semibold text-rose-600">
+                            Seleccionar Tela del Catálogo...
+                          </div>
+                        )}
+                        <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0 ml-auto" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicarRollo(r.id)}
+                        title="Duplicar este rollo"
+                        className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRollo(r.id)}
+                        title={rollos.length === 1 ? 'Reiniciar fila' : 'Eliminar rollo'}
+                        className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Fila Central: Input de Metros Grande & Accesible */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 flex items-center justify-between border border-slate-100">
+                    <span className="text-xs font-bold text-slate-600">
+                      Metros exactos:
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAjustarMetros(r.id, -1)}
+                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                        title="Restar 1 metro"
+                      >
+                        -
+                      </button>
+
+                      <div className="relative w-28">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.1"
+                          value={r.metraje}
+                          onChange={(e) => handleUpdateRollo(r.id, 'metraje', e.target.value)}
+                          className="w-full text-center text-base font-black text-slate-900 bg-white border border-blue-400 rounded-lg py-1 px-2 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                          placeholder="50.00"
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAjustarMetros(r.id, 1)}
+                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                        title="Sumar 1 metro"
+                      >
+                        +
+                      </button>
+                      <span className="text-xs font-bold text-slate-500">m</span>
+                    </div>
+                  </div>
+
+                  {/* Fila Inferior: Datos Secundarios (Código QR, Lote y Ubicación) */}
+                  <div className="pt-0.5 flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-semibold">
+                      <QrCode className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{r.codigo_rollo}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateRollo(r.id, 'detallesAbiertos', !r.detallesAbiertos)
+                      }
+                      className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer py-0.5 px-1.5 rounded-lg hover:bg-blue-50 transition"
+                    >
+                      <span>
+                        {r.lote || 'Sin Lote'} · {r.ubicacion.split('-')[0].trim()}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          r.detallesAbiertos ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Acordeón colapsable para Código QR, Lote y Ubicación específica */}
+                  {r.detallesAbiertos && (
+                    <div className="pt-2.5 border-t border-dashed border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Código de Rollo (QR):
+                        </label>
+                        <input
+                          type="text"
+                          value={r.codigo_rollo}
+                          onChange={(e) =>
+                            handleUpdateRollo(r.id, 'codigo_rollo', e.target.value)
+                          }
+                          className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Lote / DUA *:
+                        </label>
+                        <input
+                          type="text"
+                          value={r.lote}
+                          onChange={(e) =>
+                            handleUpdateRollo(r.id, 'lote', e.target.value.toUpperCase())
+                          }
+                          className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                          Ubicación Almacén:
+                        </label>
+                        <input
+                          type="text"
+                          value={r.ubicacion}
+                          onChange={(e) =>
+                            handleUpdateRollo(r.id, 'ubicacion', e.target.value)
+                          }
+                          className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ================= VISTA AMPLIA DE COMPUTADORA (hidden lg:grid) ================= */}
+                <div className="hidden lg:grid lg:grid-cols-12 lg:gap-3 lg:items-center">
+                  {/* Col 1-2: # + Código Rollo QR */}
+                  <div className="col-span-2 flex items-center gap-2">
                     <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0 border border-slate-200">
                       {index + 1}
                     </span>
+                    <div className="relative flex-1 min-w-0">
+                      <QrCode className="w-3.5 h-3.5 text-blue-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={r.codigo_rollo}
+                        onChange={(e) =>
+                          handleUpdateRollo(r.id, 'codigo_rollo', e.target.value)
+                        }
+                        className="w-full bg-slate-50 hover:bg-white rounded-xl pl-8 pr-2 py-2 border border-slate-200 text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                    {/* BOTÓN TÁCTIL PRINCIPAL: SELECCIÓN DE TELA Y COLOR */}
+                  {/* Col 3-6: Selector de Tela y Color */}
+                  <div className="col-span-4">
                     <button
                       type="button"
                       onClick={() => {
                         setBusquedaTela('');
                         setRolloEditandoTelaId(r.id);
                       }}
-                      className="text-left py-1.5 px-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                      className="w-full text-left py-2 px-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition flex items-center gap-2.5 min-w-0 cursor-pointer group"
                     >
                       <span
-                        className={`w-3 h-3 rounded-full ${dotClass} shrink-0 shadow-2xs`}
+                        className={`w-3.5 h-3.5 rounded-full ${dotClass} shrink-0 shadow-2xs`}
                       />
                       {tela ? (
                         <div className="min-w-0 flex-1">
@@ -575,141 +775,81 @@ export const IngresoMercaderiaModal: React.FC<IngresoMercaderiaModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Acciones de fila: Duplicar individual y Eliminar */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicarRollo(r.id)}
-                      title="Duplicar este rollo"
-                      className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveRollo(r.id)}
-                      title={rollos.length === 1 ? 'Reiniciar fila' : 'Eliminar rollo'}
-                      className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center active:scale-90 transition cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Fila Central: Input de Metros Grande & Accesible */}
-                <div className="bg-slate-50 rounded-xl p-2.5 flex items-center justify-between border border-slate-100">
-                  <span className="text-xs font-bold text-slate-600">
-                    Metros exactos:
-                  </span>
-
-                  <div className="flex items-center gap-2">
+                  {/* Col 7-8: Metros Exactos con botones - / + */}
+                  <div className="col-span-2 flex items-center justify-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleAjustarMetros(r.id, -1)}
-                      className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                      className="w-8 h-9 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer shrink-0"
                       title="Restar 1 metro"
                     >
                       -
                     </button>
-
-                    <div className="relative w-28">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.1"
-                        value={r.metraje}
-                        onChange={(e) => handleUpdateRollo(r.id, 'metraje', e.target.value)}
-                        className="w-full text-center text-base font-black text-slate-900 bg-white border border-blue-400 rounded-lg py-1 px-2 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
-                        placeholder="50.00"
-                        required
-                      />
-                    </div>
-
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.1"
+                      value={r.metraje}
+                      onChange={(e) => handleUpdateRollo(r.id, 'metraje', e.target.value)}
+                      className="w-24 text-center text-sm font-black text-slate-900 bg-white border border-blue-400 rounded-xl py-1.5 px-2 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                      placeholder="50.00"
+                      required
+                    />
                     <button
                       type="button"
                       onClick={() => handleAjustarMetros(r.id, 1)}
-                      className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold active:scale-90 flex items-center justify-center shadow-2xs cursor-pointer"
+                      className="w-8 h-9 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer shrink-0"
                       title="Sumar 1 metro"
                     >
                       +
                     </button>
-                    <span className="text-xs font-bold text-slate-500">m</span>
-                  </div>
-                </div>
-
-                {/* Fila Inferior: Datos Secundarios (Código QR, Lote y Ubicación) */}
-                <div className="pt-0.5 flex items-center justify-between text-[11px] text-slate-500">
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 font-semibold">
-                    <QrCode className="w-3.5 h-3.5 text-blue-600" />
-                    <span>{r.codigo_rollo}</span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleUpdateRollo(r.id, 'detallesAbiertos', !r.detallesAbiertos)
-                    }
-                    className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer py-0.5 px-1.5 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    <span>
-                      {r.lote || 'Sin Lote'} · {r.ubicacion.split('-')[0].trim()}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                        r.detallesAbiertos ? 'rotate-180' : ''
-                      }`}
+                  {/* Col 9-10: Lote / DUA visible directamente */}
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={r.lote}
+                      onChange={(e) =>
+                        handleUpdateRollo(r.id, 'lote', e.target.value.toUpperCase())
+                      }
+                      placeholder="LOT-2026-A1"
+                      className="w-full bg-slate-50 hover:bg-white rounded-xl p-2 border border-slate-200 text-xs font-mono font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                      required
                     />
-                  </button>
-                </div>
+                  </div>
 
-                {/* Acordeón colapsable para Código QR, Lote y Ubicación específica */}
-                {r.detallesAbiertos && (
-                  <div className="pt-2.5 border-t border-dashed border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-                        Código de Rollo (QR):
-                      </label>
-                      <input
-                        type="text"
-                        value={r.codigo_rollo}
-                        onChange={(e) =>
-                          handleUpdateRollo(r.id, 'codigo_rollo', e.target.value)
-                        }
-                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-                        Lote / DUA *:
-                      </label>
-                      <input
-                        type="text"
-                        value={r.lote}
-                        onChange={(e) =>
-                          handleUpdateRollo(r.id, 'lote', e.target.value.toUpperCase())
-                        }
-                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs font-mono text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-                        Ubicación Almacén:
-                      </label>
-                      <input
-                        type="text"
-                        value={r.ubicacion}
-                        onChange={(e) =>
-                          handleUpdateRollo(r.id, 'ubicacion', e.target.value)
-                        }
-                        className="w-full bg-slate-50 rounded-lg p-2 border border-slate-200 text-xs text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
-                      />
+                  {/* Col 11-12: Ubicación Almacén + Botones Duplicar / Eliminar */}
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={r.ubicacion}
+                      onChange={(e) =>
+                        handleUpdateRollo(r.id, 'ubicacion', e.target.value)
+                      }
+                      placeholder="Estante A - Nivel 1"
+                      className="w-full bg-slate-50 hover:bg-white rounded-xl p-2 border border-slate-200 text-xs text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none"
+                    />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicarRollo(r.id)}
+                        title="Duplicar este rollo"
+                        className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRollo(r.id)}
+                        title={rollos.length === 1 ? 'Reiniciar fila' : 'Eliminar rollo'}
+                        className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                )}
+                </div>
               </article>
             );
           })}
