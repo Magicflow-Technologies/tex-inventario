@@ -38,7 +38,7 @@ export default function App() {
   const perfiles = inventoryStore.getPerfiles();
 
   // Estados de navegación y modales
-  const [activeTab, setActiveTab] = useState<ActiveTab>('stock');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('consulta_stock');
   const [isIngresoOpen, setIsIngresoOpen] = useState(false);
   const [isSalidaOpen, setIsSalidaOpen] = useState(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);

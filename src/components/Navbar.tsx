@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <button
-                onClick={() => onTabChange('stock')}
+                onClick={() => onTabChange('consulta_stock')}
                 className="text-left font-bold tracking-tight text-slate-900 hover:text-[#1a73e8] transition-colors whitespace-nowrap text-sm block cursor-pointer"
               >
                 Textiles Ocho Lukal
@@ -81,6 +81,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Zone 2: Navigation pills */}
           <nav className="hidden xl:flex items-center gap-1 text-sm">
             <button
+              onClick={() => onTabChange('consulta_stock')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all whitespace-nowrap text-xs font-medium cursor-pointer ${
+                activeTab === 'consulta_stock'
+                  ? 'bg-[#e8f0fe] text-[#1967d2] font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Stock</span>
+            </button>
+
+            <button
               onClick={() => onTabChange('stock')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all whitespace-nowrap text-xs font-medium cursor-pointer ${
                 activeTab === 'stock'
@@ -95,18 +107,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {alertCount}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => onTabChange('consulta_stock')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all whitespace-nowrap text-xs font-medium cursor-pointer ${
-                activeTab === 'consulta_stock'
-                  ? 'bg-[#e8f0fe] text-[#1967d2] font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Stock</span>
             </button>
 
             <button
@@ -247,6 +247,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile / Tablet nav drawer */}
       <div className="xl:hidden border-t border-slate-200 px-3 py-2 flex items-center justify-start sm:justify-between text-xs overflow-x-auto gap-1.5 bg-slate-50/90 no-scrollbar">
         <button
+          onClick={() => onTabChange('consulta_stock')}
+          className={`px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer ${
+            activeTab === 'consulta_stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
+          }`}
+        >
+          Stock
+        </button>
+        <button
           onClick={() => onTabChange('stock')}
           className={`px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
@@ -258,14 +266,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               {alertCount}
             </span>
           )}
-        </button>
-        <button
-          onClick={() => onTabChange('consulta_stock')}
-          className={`px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer ${
-            activeTab === 'consulta_stock' ? 'bg-[#e8f0fe] text-[#1967d2] font-bold shadow-2xs' : 'text-slate-600'
-          }`}
-        >
-          Stock
         </button>
         <button
           onClick={() => onTabChange('pos')}
