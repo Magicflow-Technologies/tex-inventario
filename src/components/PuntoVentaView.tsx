@@ -934,37 +934,39 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               )}
             </form>
 
-            {/* Filtro Rápido por Línea (Sin duplicados) */}
-            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setLineaFiltro('TODAS')}
-                className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
-                  lineaFiltro === 'TODAS'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                Todas las Líneas
-              </button>
-              {lineasDisponibles.map((linea) => {
-                const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
-                return (
-                  <button
-                    key={linea}
-                    type="button"
-                    onClick={() => setLineaFiltro(linea)}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
-                      activa
-                        ? 'bg-blue-600 text-white shadow-xs font-black'
-                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    {linea}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Filtro Rápido por Línea (Solo si existen 2 o más líneas distintas) */}
+            {lineasDisponibles.length > 1 && (
+              <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setLineaFiltro('TODAS')}
+                  className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
+                    lineaFiltro === 'TODAS'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  Todas las Líneas
+                </button>
+                {lineasDisponibles.map((linea) => {
+                  const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
+                  return (
+                    <button
+                      key={linea}
+                      type="button"
+                      onClick={() => setLineaFiltro(linea)}
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                        activa
+                          ? 'bg-blue-600 text-white shadow-xs font-black'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {linea}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </header>
 
@@ -1271,36 +1273,38 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
           {/* Filtros de Línea + Botón Pedidos Pendientes */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 bg-[#071833] p-1.5 rounded-2xl border border-blue-800/70">
-              <button
-                type="button"
-                onClick={() => setLineaFiltro('TODAS')}
-                className={`px-3 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
-                  lineaFiltro === 'TODAS'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Todas las Líneas
-              </button>
-              {lineasDisponibles.map((linea) => {
-                const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
-                return (
-                  <button
-                    key={linea}
-                    type="button"
-                    onClick={() => setLineaFiltro(linea)}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
-                      activa
-                        ? 'bg-blue-600 text-white shadow-xs font-black'
-                        : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    {linea}
-                  </button>
-                );
-              })}
-            </div>
+            {lineasDisponibles.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-[#071833] p-1.5 rounded-2xl border border-blue-800/70">
+                <button
+                  type="button"
+                  onClick={() => setLineaFiltro('TODAS')}
+                  className={`px-3 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
+                    lineaFiltro === 'TODAS'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Todas las Líneas
+                </button>
+                {lineasDisponibles.map((linea) => {
+                  const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
+                  return (
+                    <button
+                      key={linea}
+                      type="button"
+                      onClick={() => setLineaFiltro(linea)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                        activa
+                          ? 'bg-blue-600 text-white shadow-xs font-black'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {linea}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <button
               type="button"

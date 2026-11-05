@@ -113,8 +113,16 @@ export function normalizeSpaces(text?: string | null): string {
 export function normalizeLinea(rawLinea?: string | null): string {
   const clean = normalizeSpaces(rawLinea);
   if (!clean) return 'Moda Masculino';
-  if (/^moda\s+ma?s?culin[oa]$/i.test(clean)) {
+  const lower = clean.toLowerCase();
+  if (
+    lower.includes('mascul') ||
+    lower.includes('macul') ||
+    /^moda\s+m/i.test(clean)
+  ) {
     return 'Moda Masculino';
+  }
+  if (lower.includes('femen') || lower.includes('dama')) {
+    return 'Moda Femenino';
   }
   // Title case words
   return clean
