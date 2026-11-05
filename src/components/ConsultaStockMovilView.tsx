@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { StockConsolidadoTela, PedidoCompleto, Cliente } from '../types/inventory';
-import { inventoryStore } from '../services/inventoryStore';
+import { inventoryStore, normalizeLinea, normalizeSpaces } from '../services/inventoryStore';
 import {
   Search,
   XCircle,
@@ -113,23 +113,26 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
     }, 2800);
   };
 
-  // Obtener todas las líneas únicas presentes en el inventario
+  // Obtener todas las líneas únicas presentes en el inventario (normalizadas)
   const lineasDisponibles = useMemo(() => {
-    const setLineas = new Set<string>();
+    const mapLineas = new Map<string, string>();
     stockList.forEach((item) => {
-      const l = (item.linea || 'General').trim();
-      if (l) setLineas.add(l);
+      const l = normalizeLinea(item.linea);
+      const key = l.toLowerCase();
+      if (!mapLineas.has(key)) mapLineas.set(key, l);
     });
-    return Array.from(setLineas);
+    return Array.from(mapLineas.values());
   }, [stockList]);
 
-  // Agrupar stockList por (Línea + Código de Artículo) igual que la plantilla móvil
+  // Agrupar stockList por (Línea Normalizada + Código de Artículo) sin duplicar
   const gruposFiltrados = useMemo(() => {
     const mapGrupos = new Map<string, GrupoArticulo>();
     const search = terminoBusqueda.trim().toLowerCase();
 
     stockList.forEach((item) => {
-      const lineaNorm = (item.linea || 'General').trim();
+      const lineaNorm = normalizeLinea(item.linea);
+      const codigoArtNorm = normalizeSpaces(item.codigo).toUpperCase();
+      const nombreLimpio = normalizeSpaces(item.nombre).replace(/8Tex/g, '8tex');
 
       // Filtro por pestaña de línea
       if (
@@ -148,9 +151,9 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             (r.lote && r.lote.toLowerCase().includes(search))
         );
         const matchTexto =
-          item.codigo.toLowerCase().includes(search) ||
+          codigoArtNorm.toLowerCase().includes(search) ||
           item.codigo_color.toLowerCase().includes(search) ||
-          item.nombre.toLowerCase().includes(search) ||
+          nombreLimpio.toLowerCase().includes(search) ||
           item.color.toLowerCase().includes(search) ||
           lineaNorm.toLowerCase().includes(search) ||
           matchRollo;
@@ -158,26 +161,27 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
         if (!matchTexto) return;
       }
 
-      const groupKey = `${lineaNorm}_${item.codigo}`;
+      const groupKey = `${lineaNorm.toLowerCase()}__${codigoArtNorm}`;
       const existing = mapGrupos.get(groupKey);
 
       if (!existing) {
         mapGrupos.set(groupKey, {
           groupKey,
           linea: lineaNorm,
-          codigoArticulo: item.codigo,
-          nombreBase: item.nombre,
+          codigoArticulo: codigoArtNorm,
+          nombreBase: nombreLimpio,
           ancho: `${(Number(item.ancho) || 1.6).toFixed(2)} m`,
-          variantes: [item],
+          variantes: [{ ...item, nombre: nombreLimpio, linea: lineaNorm }],
           totalMetros: item.total_metros_disponibles,
           totalRollos: item.total_rollos_disponibles,
         });
       } else {
-        existing.variantes.push(item);
+        existing.variantes.push({ ...item, nombre: nombreLimpio, linea: lineaNorm });
         existing.totalMetros += item.total_metros_disponibles;
         existing.totalRollos += item.total_rollos_disponibles;
-        if (!existing.nombreBase.toLowerCase().includes(item.nombre.toLowerCase())) {
-          existing.nombreBase = `${existing.nombreBase} / ${item.nombre}`;
+        const partesActuales = existing.nombreBase.split(' / ').map((p) => p.toLowerCase());
+        if (!partesActuales.includes(nombreLimpio.toLowerCase())) {
+          existing.nombreBase = `${existing.nombreBase} / ${nombreLimpio}`;
         }
       }
     });
@@ -338,7 +342,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   };
 
   return (
-    <div className="max-w-3xl mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md select-none">
+    <div className="max-w-md lg:max-w-7xl mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md select-none">
       {/* ================= TOP APP BAR (#0F284E) ================= */}
       <header className="bg-[#0F284E] text-white shadow-md border-b border-blue-900/50">
         <div className="px-4 py-3.5 flex items-center justify-between">
@@ -520,9 +524,9 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                   </div>
                 </div>
 
-                {/* Contenido Desplegable: Variantes de Color */}
+                {/* Contenido Desplegable: Variantes de Color (1 columna en celular, grilla amplia de 2 columnas en PC) */}
                 {estaAbierto && (
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-slate-100 lg:divide-y-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:p-3.5">
                     {grupo.variantes.map((v) => {
                       const tieneStock = v.total_metros_disponibles > 0;
                       const badgeHex = getColorHex(v.color);
@@ -531,8 +535,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                       return (
                         <div
                           key={v.tela_id}
-                          className={`p-3 sm:p-3.5 flex items-center justify-between gap-2 hover:bg-slate-50/60 transition ${
-                            tieneStock ? '' : 'opacity-65 bg-slate-50/30'
+                          className={`p-3 sm:p-3.5 lg:rounded-2xl lg:border lg:border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-50/60 transition ${
+                            tieneStock ? 'bg-white' : 'opacity-65 bg-slate-50/30'
                           }`}
                         >
                           {/* Datos requeridos: Código Color, Nombre Tela/Color */}

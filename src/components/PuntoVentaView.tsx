@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Tela, RolloConTela, PedidoCompleto, Cliente } from '../types/inventory';
-import { inventoryStore } from '../services/inventoryStore';
+import { inventoryStore, normalizeLinea, normalizeSpaces } from '../services/inventoryStore';
 import {
   ShoppingCart,
   Search,
@@ -20,6 +20,7 @@ import {
   Mail,
   MessageCircle,
   UserPlus,
+  Layers,
 } from 'lucide-react';
 
 interface PuntoVentaViewProps {
@@ -132,14 +133,14 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   // Precios negociados individuales por variante de tela (tela.id -> precio)
   const [preciosNegociados, setPreciosNegociados] = useState<Record<string, number>>({});
 
-  // Rollos seleccionados en el pedido: Map<rolloId, RolloConTela>
+  // Rollos seleccionados en el pedido
   const [rollosSeleccionadosIds, setRollosSeleccionadosIds] = useState<string[]>([]);
 
   // Acordeones de artículos y colores
   const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});
   const [coloresAbiertos, setColoresAbiertos] = useState<Record<string, boolean>>({});
 
-  // Modales de Carrito y Pantalla de Éxito
+  // Modales de Carrito (móvil) y Pantalla de Éxito
   const [isCarritoOpen, setIsCarritoOpen] = useState<boolean>(false);
   const [pedidoExitoso, setPedidoExitoso] = useState<{
     pedido: PedidoCompleto;
@@ -148,7 +149,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     requiereAutorizacionJefe: boolean;
   } | null>(null);
 
-  // Toast rápido estilo app móvil
+  // Toast rápido
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const mostrarToastCalle = (msg: string) => {
@@ -186,7 +187,8 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     if (initialTelaId) {
       const foundTela = telas.find((t) => t.id === initialTelaId);
       if (foundTela) {
-        setArticulosAbiertos((prev) => ({ ...prev, [foundTela.codigo]: true }));
+        const cleanCod = normalizeSpaces(foundTela.codigo).toUpperCase();
+        setArticulosAbiertos((prev) => ({ ...prev, [cleanCod]: true }));
         setColoresAbiertos((prev) => ({ ...prev, [foundTela.id]: true }));
       }
     }
@@ -225,7 +227,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     }));
   };
 
-  // Construir estructura jerárquica: Línea > Artículo > Colores > Rollos
+  // Construir estructura jerárquica: Línea (normalizada) > Artículo (normalizado) > Colores > Rollos
   const catalogoJerarquico = useMemo<LineaJerarquica[]>(() => {
     const rollosPorTela = new Map<string, RolloConTela[]>();
     allRollosDisponibles.forEach((r) => {
@@ -234,23 +236,35 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       rollosPorTela.set(r.tela_id, arr);
     });
 
-    const lineasMap = new Map<string, Map<string, ArticuloJerarquico>>();
+    const lineasMap = new Map<
+      string,
+      { displayLinea: string; artMap: Map<string, ArticuloJerarquico> }
+    >();
 
     telas.forEach((t) => {
-      const nombreLinea = (t.linea || 'Moda Masculino').trim();
-      if (!lineasMap.has(nombreLinea)) {
-        lineasMap.set(nombreLinea, new Map<string, ArticuloJerarquico>());
+      const nombreLinea = normalizeLinea(t.linea);
+      const lineaKey = nombreLinea.toLowerCase();
+
+      if (!lineasMap.has(lineaKey)) {
+        lineasMap.set(lineaKey, {
+          displayLinea: nombreLinea,
+          artMap: new Map<string, ArticuloJerarquico>(),
+        });
       }
-      const artMap = lineasMap.get(nombreLinea)!;
-      const codArt = (t.codigo || 'S/C').trim();
+
+      const { artMap } = lineasMap.get(lineaKey)!;
+      const codArt = normalizeSpaces(t.codigo || 'S/C').toUpperCase();
+      const nombreComercialLimpio = normalizeSpaces(t.nombre).replace(/8Tex/g, '8tex');
+      const nombreColorLimpio = normalizeSpaces(t.color) || 'Estándar';
+      const codigoColorLimpio = normalizeSpaces(t.codigo_color) || '00';
 
       const rollosDeVariante = rollosPorTela.get(t.id) || [];
       const nodoColor: VarianteColorNodo = {
         tela: t,
-        codigoColor: t.codigo_color || '00',
-        nombreColor: t.color || 'Estándar',
-        nombreComercial: t.nombre,
-        badgeColor: getColorHex(t.color),
+        codigoColor: codigoColorLimpio,
+        nombreColor: nombreColorLimpio,
+        nombreComercial: nombreComercialLimpio,
+        badgeColor: getColorHex(nombreColorLimpio),
         precioLista: getPrecioListaSugerido(t),
         rollos: rollosDeVariante,
       };
@@ -258,30 +272,38 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       if (!artMap.has(codArt)) {
         artMap.set(codArt, {
           codigoArticulo: codArt,
-          nombreBase: t.nombre,
+          nombreBase: nombreComercialLimpio,
           colores: [nodoColor],
         });
       } else {
         const existingArt = artMap.get(codArt)!;
         existingArt.colores.push(nodoColor);
-        if (!existingArt.nombreBase.toLowerCase().includes(t.nombre.toLowerCase())) {
-          existingArt.nombreBase = `${existingArt.nombreBase} / ${t.nombre}`;
+        const nombresExistentes = existingArt.nombreBase
+          .split(' / ')
+          .map((n) => n.trim().toLowerCase());
+        if (!nombresExistentes.includes(nombreComercialLimpio.toLowerCase())) {
+          existingArt.nombreBase = `${existingArt.nombreBase} / ${nombreComercialLimpio}`;
         }
       }
     });
 
+    // Ordenar colores poniendo primero los que tienen stock disponible
     const resultado: LineaJerarquica[] = [];
-    lineasMap.forEach((artMap, linea) => {
+    lineasMap.forEach(({ displayLinea, artMap }) => {
+      const articulos = Array.from(artMap.values()).map((art) => ({
+        ...art,
+        colores: [...art.colores].sort((a, b) => b.rollos.length - a.rollos.length),
+      }));
       resultado.push({
-        linea,
-        articulos: Array.from(artMap.values()),
+        linea: displayLinea,
+        articulos,
       });
     });
 
     return resultado;
   }, [telas, allRollosDisponibles]);
 
-  // Todas las líneas disponibles para las píldoras superiores
+  // Todas las líneas únicas disponibles
   const lineasDisponibles = useMemo(() => {
     return catalogoJerarquico.map((g) => g.linea);
   }, [catalogoJerarquico]);
@@ -393,10 +415,10 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   };
 
   // Toggle acordeón variante de color
-  const toggleColorDesglose = (telaId: string) => {
+  const toggleColorDesglose = (telaId: string, defaultOpen: boolean) => {
     setColoresAbiertos((prev) => ({
       ...prev,
-      [telaId]: !(prev[telaId] ?? false),
+      [telaId]: !(prev[telaId] ?? defaultOpen),
     }));
   };
 
@@ -502,7 +524,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       )}m x S/${item.precioNegociado.toFixed(2)} = S/${item.subtotal.toFixed(2)}\n`;
     });
 
-    // Si ya se confirmó el pedido y se limpió el carrito, usar el detalle del pedido exitoso
     let metrosFinal = totalMetros;
     let solesFinal = totalSoles;
     let rollosCountFinal = totalRollos;
@@ -637,40 +658,240 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     4: '4 Letras (30 / 60 / 90 / 120 días)',
   };
 
-  return (
-    <div className="max-w-3xl mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md pb-28 select-none">
-      {/* ================= TOP APP BAR FIJO (LOGO + LEMA + BUSCADOR) ================= */}
-      <header className="sticky top-0 z-30 bg-[#0B2144] text-white shadow-md border-b border-blue-900/50 print:hidden">
-        <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-md border border-white/20">
-              8t
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black tracking-widest text-white">8TEX</span>
-                <span className="text-[9px] bg-blue-500/20 text-blue-300 font-bold px-1.5 py-0.5 rounded border border-blue-400/30">
-                  CALLE / POS
+  // Sub-componente reutilizable para renderizar una tarjeta de Variante de Color
+  const renderTarjetaVarianteColor = (
+    col: VarianteColorNodo,
+    idxColor: number,
+    isDesktop: boolean
+  ) => {
+    const totalMetrosColor = col.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+    const rollosCount = col.rollos.length;
+    const tieneStock = rollosCount > 0;
+    const defaultOpen = isDesktop ? tieneStock : idxColor === 0 && tieneStock;
+    const abiertoColor =
+      coloresAbiertos[col.tela.id] ?? (Boolean(busquedaTexto.trim()) ? tieneStock : defaultOpen);
+
+    const precioNegociadoActual = getPrecioNegociado(col.tela);
+    const precioRebajado = precioNegociadoActual < col.precioLista;
+
+    const marcadosColor = col.rollos.filter((r) => rollosSeleccionadosIds.includes(r.id)).length;
+
+    return (
+      <div
+        key={col.tela.id}
+        className={`rounded-2xl border transition p-3 sm:p-3.5 space-y-2.5 flex flex-col justify-between ${
+          marcadosColor > 0
+            ? 'bg-blue-50/40 border-blue-300 ring-2 ring-blue-500/10'
+            : 'bg-white border-slate-200/80 shadow-2xs'
+        }`}
+      >
+        <div className="space-y-2.5">
+          {/* Fila Principal del Color (Tocable para ver Rollos) */}
+          <div
+            onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
+            className={`cursor-pointer flex items-center justify-between gap-2.5 ${
+              tieneStock ? '' : 'opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex flex-col items-center shrink-0">
+                <span
+                  className={`px-2.5 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border ${
+                    tieneStock
+                      ? 'bg-slate-900 text-white border-slate-800'
+                      : 'bg-slate-200 text-slate-500 border-slate-300'
+                  }`}
+                >
+                  {col.codigoColor}
                 </span>
+                <span
+                  className="w-4 h-1.5 rounded-full mt-1"
+                  style={{ backgroundColor: col.badgeColor }}
+                />
               </div>
-              <p className="text-[10px] text-blue-200 font-medium">
-                PERÚ | Donde nacen las futuras tendencias
-              </p>
+
+              <div className="min-w-0">
+                <h4 className="text-xs font-black text-slate-800 truncate">
+                  {col.nombreComercial}
+                </h4>
+                <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="text-right">
+                <div
+                  className={`text-xs font-black font-mono ${
+                    tieneStock ? 'text-slate-900' : 'text-slate-400'
+                  }`}
+                >
+                  {totalMetrosColor.toFixed(2)}{' '}
+                  <span className="text-[10px] text-blue-600 font-bold font-sans">m</span>
+                </div>
+                <div
+                  className={`text-[10px] font-bold ${
+                    tieneStock ? 'text-emerald-700' : 'text-slate-400'
+                  }`}
+                >
+                  {tieneStock
+                    ? `${rollosCount} ${rollosCount === 1 ? 'rollo' : 'rollos'}`
+                    : 'Agotado'}
+                </div>
+              </div>
+              <div
+                className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 text-xs transition-transform ${
+                  abiertoColor ? 'rotate-180' : ''
+                }`}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onIrAPedidosPendientes}
-              className="px-2.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-blue-200 border border-white/10 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition cursor-pointer"
-              title="Ver Pedidos Pendientes"
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Pedidos</span>
-            </button>
+          {/* P. METRO INDIVIDUAL PARA ESTE COLOR */}
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                Precio / Metro Individual:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                  Lista: S/ {col.precioLista.toFixed(2)}
+                </span>
+                {precioRebajado && (
+                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                    Rebaja
+                  </span>
+                )}
+              </div>
+            </div>
 
-            {/* Botón Carrito Flotante Directo */}
+            <div className="flex items-center gap-1">
+              <span className="font-black text-slate-700">S/</span>
+              <input
+                type="number"
+                step="0.10"
+                min="0.10"
+                value={precioNegociadoActual}
+                onChange={(e) => actualizarPrecioColor(col.tela, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className={`w-20 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
+                  precioRebajado
+                    ? 'border-amber-400 text-amber-900'
+                    : 'border-blue-400 text-slate-900'
+                }`}
+              />
+              <span className="text-[10px] text-slate-400 font-bold">/m</span>
+            </div>
+          </div>
+
+          {/* Desglose de Rollos Físicos con Botón '+ Marcar' / '✓ Marcado' */}
+          {abiertoColor && (
+            <div className="space-y-1.5 pt-1">
+              {tieneStock ? (
+                col.rollos.map((rollo, idx) => {
+                  const seleccionado = rollosSeleccionadosIds.includes(rollo.id);
+                  return (
+                    <div
+                      key={rollo.id}
+                      onClick={() => toggleRolloCalle(rollo)}
+                      className={`p-2.5 rounded-xl flex items-center justify-between gap-2.5 border transition active:scale-98 cursor-pointer ${
+                        seleccionado
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-blue-50/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                            seleccionado
+                              ? 'bg-white/20 text-white'
+                              : 'bg-white text-slate-600 border border-slate-200'
+                          }`}
+                        >
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div
+                            className={`font-mono text-[10px] font-bold flex items-center gap-1.5 flex-wrap ${
+                              seleccionado ? 'text-blue-100' : 'text-slate-500'
+                            }`}
+                          >
+                            <span>{rollo.codigo_rollo}</span>
+                            {rollo.ubicacion && <span>· {rollo.ubicacion}</span>}
+                            {rollo.lote && <span>· {rollo.lote}</span>}
+                          </div>
+                          <div
+                            className={`text-xs font-black font-mono ${
+                              seleccionado ? 'text-white' : 'text-slate-900'
+                            }`}
+                          >
+                            {rollo.metraje.toFixed(2)} metros
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`h-8 px-3 rounded-lg text-xs font-black flex items-center gap-1 transition shrink-0 cursor-pointer ${
+                          seleccionado
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-white text-blue-700 border border-blue-300'
+                        }`}
+                      >
+                        {seleccionado ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Marcado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Marcar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-slate-400 italic text-center py-1">
+                  Sin rollos físicos en almacén.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="select-none pb-24 lg:pb-6">
+      {/* ========================================================================
+          VISTA 1: MODO CELULAR (< lg) — Diseño ergonómico de una mano
+          ======================================================================== */}
+      <div className="lg:hidden max-w-md mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md print:hidden">
+        {/* TOP APP BAR MÓVIL */}
+        <header className="sticky top-0 z-30 bg-[#0B2144] text-white shadow-md border-b border-blue-900/50">
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-md border border-white/20">
+                8t
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black tracking-widest text-white">8TEX</span>
+                  <span className="text-[9px] bg-blue-500/20 text-blue-300 font-bold px-1.5 py-0.5 rounded border border-blue-400/30">
+                    CALLE
+                  </span>
+                </div>
+                <p className="text-[10px] text-blue-200 font-medium">
+                  PERÚ | Donde nacen las futuras tendencias
+                </p>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -690,542 +911,851 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               )}
             </button>
           </div>
-        </div>
 
-        {/* Buscador Gigante para el Pulgar */}
-        <div className="px-4 pb-3 pt-1">
-          <form onSubmit={handleBuscadorSubmit} className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-            <input
-              type="text"
-              value={busquedaTexto}
-              onChange={(e) => setBusquedaTexto(e.target.value)}
-              placeholder="Buscar por artículo, color o rollo (ej: C-900, Silka, 4150, ROL-...)..."
-              className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-10 pr-10 py-3 text-xs sm:text-sm font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
-            />
-            {busquedaTexto && (
-              <button
-                type="button"
-                onClick={() => setBusquedaTexto('')}
-                className="absolute right-3 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            )}
-          </form>
-
-          {/* Filtro Rápido por Línea */}
-          <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setLineaFiltro('TODAS')}
-              className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
-                lineaFiltro === 'TODAS'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              Todas las Líneas
-            </button>
-            {lineasDisponibles.map((linea) => {
-              const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
-              return (
+          {/* Buscador Móvil */}
+          <div className="px-4 pb-3 pt-1">
+            <form onSubmit={handleBuscadorSubmit} className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={busquedaTexto}
+                onChange={(e) => setBusquedaTexto(e.target.value)}
+                placeholder="Buscar por artículo, color o rollo (ej: C-900, Silka, 4150)..."
+                className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-10 pr-10 py-3 text-xs font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+              />
+              {busquedaTexto && (
                 <button
-                  key={linea}
                   type="button"
-                  onClick={() => setLineaFiltro(linea)}
-                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
-                    activa
-                      ? 'bg-blue-600 text-white shadow-xs font-black'
-                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
-                  }`}
+                  onClick={() => setBusquedaTexto('')}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
                 >
-                  {linea}
+                  <XCircle className="w-5 h-5" />
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      </header>
+              )}
+            </form>
 
-      {/* ================= SECCIÓN RÁPIDA DE CLIENTE & CONDICIÓN ================= */}
-      <section className="p-3.5 bg-white border-b border-slate-200/90 shadow-2xs space-y-2.5 print:hidden">
-        {/* Fila Cliente Activo */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-base shrink-0 border border-blue-200">
-              <User className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Cliente Asignado
-              </span>
+            {/* Filtro Rápido por Línea (Sin duplicados) */}
+            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
               <button
                 type="button"
-                onClick={() => setIsModalClientesOpen(true)}
-                className="text-xs sm:text-sm font-black text-slate-900 truncate hover:text-blue-700 flex items-center gap-1 text-left cursor-pointer"
+                onClick={() => setLineaFiltro('TODAS')}
+                className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
+                  lineaFiltro === 'TODAS'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                }`}
               >
-                <span className="truncate">{clienteNombre || 'Seleccionar Cliente...'}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                Todas las Líneas
               </button>
-            </div>
-          </div>
-
-          {/* Chip RUC */}
-          <button
-            type="button"
-            onClick={() => setIsModalClientesOpen(true)}
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-[11px] font-mono font-bold shrink-0 border border-slate-200 active:scale-95 transition cursor-pointer"
-          >
-            {clienteRuc || 'Elegir RUC'}
-          </button>
-        </div>
-
-        {/* Selector Contado / Crédito y Letras Dinámicas */}
-        <div className="pt-2 border-t border-slate-100 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setCondicionPago('CONTADO')}
-              className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 active:scale-96 cursor-pointer ${
-                condicionPago === 'CONTADO'
-                  ? 'font-black bg-emerald-600 text-white shadow-xs'
-                  : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              <span>Contado</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCondicionPago('CREDITO')}
-              className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 active:scale-96 cursor-pointer ${
-                condicionPago === 'CREDITO'
-                  ? 'font-black bg-amber-600 text-white shadow-xs'
-                  : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
-              }`}
-            >
-              <CalendarCheck className="w-4 h-4" />
-              <span>Crédito</span>
-            </button>
-          </div>
-
-          {/* Selector de Letras (Solo visible en Crédito) */}
-          {condicionPago === 'CREDITO' && (
-            <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-extrabold text-amber-950 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Plazo de Financiamiento (Letras):</span>
-                </span>
-                <span className="font-black text-amber-800 text-[11px] font-mono">
-                  {labelLetrasMap[numeroLetras]}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-4 gap-1.5 text-xs">
-                {([1, 2, 3, 4] as const).map((cant) => (
+              {lineasDisponibles.map((linea) => {
+                const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
+                return (
                   <button
-                    key={cant}
+                    key={linea}
                     type="button"
-                    onClick={() => setNumeroLetras(cant)}
-                    className={`py-2 rounded-xl text-[11px] text-center transition cursor-pointer ${
-                      numeroLetras === cant
-                        ? 'font-black bg-amber-600 text-white shadow-xs'
-                        : 'font-bold bg-white border border-amber-300 text-amber-900'
+                    onClick={() => setLineaFiltro(linea)}
+                    className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                      activa
+                        ? 'bg-blue-600 text-white shadow-xs font-black'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    {cant}L ({cant * 30}d)
+                    {linea}
                   </button>
-                ))}
-              </div>
-
-              <div className="text-[11px] text-amber-900 font-semibold flex items-center justify-between pt-1 border-t border-amber-200/70">
-                <span>Monto por letra estimado:</span>
-                <strong className="font-black font-mono text-xs text-amber-950">
-                  S/ {montoPorLetra.toFixed(2)} / letra ({numeroLetras}L)
-                </strong>
-              </div>
-            </div>
-          )}
-
-          {/* Badge de Regla Comercial Dinámica Global (HU-010 / HU-019) */}
-          <div
-            className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl border transition ${
-              !requiereAprobacionJefeVentas
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : 'bg-amber-50 text-amber-900 border-amber-300'
-            }`}
-          >
-            {!requiereAprobacionJefeVentas ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-            )}
-            <span>
-              {condicionPago === 'CONTADO'
-                ? 'Venta al Contado: Pasa directo a Créditos / Facturación'
-                : !algunPrecioRebajado
-                ? 'Precios oficiales respetados: Pasa directo a Créditos'
-                : 'Requiere aprobación de Jefatura de Ventas (Crédito con precio menor al de lista)'}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= LISTA JERÁRQUICA: LÍNEA > ARTÍCULO > COLORES > ROLLOS ================= */}
-      <main className="p-3 sm:p-4 space-y-3.5 print:hidden">
-        {catalogoFiltrado.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-slate-400 space-y-2 border border-slate-200 shadow-2xs">
-            <Search className="w-8 h-8 text-slate-300 mx-auto" />
-            <p className="text-xs font-bold text-slate-600">
-              No encontramos telas o rollos con ese criterio de búsqueda.
-            </p>
-          </div>
-        ) : (
-          catalogoFiltrado.map((grupoLinea) => (
-            <section key={grupoLinea.linea} className="space-y-3">
-              {/* Etiqueta de la Línea */}
-              <div className="flex items-center gap-2 px-1 pt-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
-                  {grupoLinea.linea}
-                </h2>
-              </div>
-
-              {/* Artículos dentro de esta Línea */}
-              {grupoLinea.articulos.map((art) => {
-                const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
-
-                let metrosTotalesArt = 0;
-                let rollosTotalesArt = 0;
-                art.colores.forEach((c) => {
-                  metrosTotalesArt += c.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
-                  rollosTotalesArt += c.rollos.length;
-                });
-
-                return (
-                  <article
-                    key={`${grupoLinea.linea}_${art.codigoArticulo}`}
-                    className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden transition"
-                  >
-                    {/* Encabezado de Artículo (Acordeón) */}
-                    <div
-                      onClick={() => toggleArticulo(art.codigoArticulo)}
-                      className="p-3.5 bg-slate-50/80 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-100"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="px-2.5 h-8 rounded-xl bg-blue-100 text-blue-800 font-mono text-xs font-black flex items-center justify-center shrink-0 border border-blue-200">
-                          {art.codigoArticulo}
-                        </span>
-                        <div className="min-w-0">
-                          <h3 className="text-xs sm:text-sm font-black text-slate-900 truncate leading-snug">
-                            {art.nombreBase}
-                          </h3>
-                          <p className="text-[10px] text-slate-400 font-bold">
-                            {art.colores.length}{' '}
-                            {art.colores.length === 1 ? 'color disponible' : 'colores disponibles'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <span className="text-xs sm:text-sm font-black text-slate-900 font-mono">
-                            {metrosTotalesArt.toFixed(2)}{' '}
-                            <span className="text-[10px] text-blue-600 font-bold font-sans">m</span>
-                          </span>
-                          <div className="text-[10px] font-bold text-slate-500">
-                            {rollosTotalesArt} {rollosTotalesArt === 1 ? 'rollo' : 'rollos'}
-                          </div>
-                        </div>
-                        <div
-                          className={`w-7 h-7 rounded-xl bg-slate-200/60 flex items-center justify-center text-slate-600 text-xs transition-transform ${
-                            abiertoArt ? 'rotate-180 bg-blue-50 text-blue-700' : ''
-                          }`}
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Lista Desplegable de Colores */}
-                    {abiertoArt && (
-                      <div className="divide-y divide-slate-100 p-2 space-y-2">
-                        {art.colores.map((col, idxColor) => {
-                          const totalMetrosColor = col.rollos.reduce(
-                            (acc, r) => acc + Number(r.metraje),
-                            0
-                          );
-                          const rollosCount = col.rollos.length;
-                          const tieneStock = rollosCount > 0;
-                          const abiertoColor =
-                            coloresAbiertos[col.tela.id] ??
-                            (idxColor === 0 && tieneStock) ??
-                            Boolean(busquedaTexto.trim());
-
-                          const precioNegociadoActual = getPrecioNegociado(col.tela);
-                          const precioRebajado = precioNegociadoActual < col.precioLista;
-
-                          const marcadosColor = col.rollos.filter((r) =>
-                            rollosSeleccionadosIds.includes(r.id)
-                          ).length;
-
-                          return (
-                            <div
-                              key={col.tela.id}
-                              className={`rounded-2xl border transition p-3 space-y-2.5 ${
-                                marcadosColor > 0
-                                  ? 'bg-blue-50/40 border-blue-300 ring-2 ring-blue-500/10'
-                                  : 'bg-white border-slate-100'
-                              }`}
-                            >
-                              {/* Fila Principal del Color (Tocable para ver Rollos) */}
-                              <div
-                                onClick={() => toggleColorDesglose(col.tela.id)}
-                                className={`cursor-pointer flex items-center justify-between gap-2.5 ${
-                                  tieneStock ? '' : 'opacity-60'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="flex flex-col items-center shrink-0">
-                                    <span
-                                      className={`px-2 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border ${
-                                        tieneStock
-                                          ? 'bg-slate-900 text-white border-slate-800'
-                                          : 'bg-slate-200 text-slate-500 border-slate-300'
-                                      }`}
-                                    >
-                                      {col.codigoColor}
-                                    </span>
-                                    <span
-                                      className="w-4 h-1.5 rounded-full mt-1"
-                                      style={{ backgroundColor: col.badgeColor }}
-                                    />
-                                  </div>
-
-                                  <div className="min-w-0">
-                                    <h4 className="text-xs font-black text-slate-800 truncate">
-                                      {col.nombreComercial}
-                                    </h4>
-                                    <p className="text-xs font-extrabold text-blue-700 truncate">
-                                      {col.nombreColor}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="text-right">
-                                    <div
-                                      className={`text-xs font-black font-mono ${
-                                        tieneStock ? 'text-slate-900' : 'text-slate-400'
-                                      }`}
-                                    >
-                                      {totalMetrosColor.toFixed(2)}{' '}
-                                      <span className="text-[10px] text-blue-600 font-bold font-sans">
-                                        m
-                                      </span>
-                                    </div>
-                                    <div
-                                      className={`text-[10px] font-bold ${
-                                        tieneStock ? 'text-emerald-700' : 'text-slate-400'
-                                      }`}
-                                    >
-                                      {tieneStock
-                                        ? `${rollosCount} ${rollosCount === 1 ? 'rollo' : 'rollos'}`
-                                        : 'Agotado'}
-                                    </div>
-                                  </div>
-                                  <div
-                                    className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 text-xs transition-transform ${
-                                      abiertoColor ? 'rotate-180' : ''
-                                    }`}
-                                  >
-                                    <ChevronDown className="w-3.5 h-3.5" />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* P. METRO INDIVIDUAL PARA ESTE COLOR */}
-                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-                                    Precio / Metro Individual:
-                                  </span>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-mono text-slate-400">
-                                      Lista: S/ {col.precioLista.toFixed(2)}
-                                    </span>
-                                    {precioRebajado && (
-                                      <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                                        Rebaja
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <span className="font-black text-slate-700">S/</span>
-                                  <input
-                                    type="number"
-                                    step="0.10"
-                                    min="0.10"
-                                    value={precioNegociadoActual}
-                                    onChange={(e) =>
-                                      actualizarPrecioColor(col.tela, e.target.value)
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                    className={`w-20 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
-                                      precioRebajado
-                                        ? 'border-amber-400 text-amber-900'
-                                        : 'border-blue-400 text-slate-900'
-                                    }`}
-                                  />
-                                  <span className="text-[10px] text-slate-400 font-bold">/m</span>
-                                </div>
-                              </div>
-
-                              {/* Desglose de Rollos Físicos con Botón '+ Marcar' / '✓ Marcado' (SIN botón de eliminar rollo del inventario) */}
-                              {abiertoColor && (
-                                <div className="space-y-1.5 pt-1">
-                                  {tieneStock ? (
-                                    col.rollos.map((rollo, idx) => {
-                                      const seleccionado = rollosSeleccionadosIds.includes(
-                                        rollo.id
-                                      );
-                                      return (
-                                        <div
-                                          key={rollo.id}
-                                          onClick={() => toggleRolloCalle(rollo)}
-                                          className={`p-2.5 rounded-xl flex items-center justify-between gap-2.5 border transition active:scale-98 cursor-pointer ${
-                                            seleccionado
-                                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                              : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-blue-50/40'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2.5 min-w-0">
-                                            <span
-                                              className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                                seleccionado
-                                                  ? 'bg-white/20 text-white'
-                                                  : 'bg-white text-slate-600 border border-slate-200'
-                                              }`}
-                                            >
-                                              {idx + 1}
-                                            </span>
-                                            <div className="min-w-0">
-                                              <div
-                                                className={`font-mono text-[10px] font-bold flex items-center gap-1.5 flex-wrap ${
-                                                  seleccionado ? 'text-blue-100' : 'text-slate-500'
-                                                }`}
-                                              >
-                                                <span>{rollo.codigo_rollo}</span>
-                                                {rollo.ubicacion && (
-                                                  <span>· {rollo.ubicacion}</span>
-                                                )}
-                                                {rollo.lote && <span>· {rollo.lote}</span>}
-                                              </div>
-                                              <div
-                                                className={`text-xs font-black font-mono ${
-                                                  seleccionado ? 'text-white' : 'text-slate-900'
-                                                }`}
-                                              >
-                                                {rollo.metraje.toFixed(2)} metros
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <button
-                                            type="button"
-                                            className={`h-8 px-3 rounded-lg text-xs font-black flex items-center gap-1 transition shrink-0 cursor-pointer ${
-                                              seleccionado
-                                                ? 'bg-emerald-500 text-white'
-                                                : 'bg-white text-blue-700 border border-blue-300'
-                                            }`}
-                                          >
-                                            {seleccionado ? (
-                                              <>
-                                                <Check className="w-3.5 h-3.5" />
-                                                <span>Marcado</span>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Plus className="w-3.5 h-3.5" />
-                                                <span>Marcar</span>
-                                              </>
-                                            )}
-                                          </button>
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <p className="text-xs text-slate-400 italic text-center py-1">
-                                      Sin rollos físicos en almacén.
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </article>
                 );
               })}
-            </section>
-          ))
-        )}
-      </main>
-
-      {/* ================= BARRA PERSISTENTE INFERIOR (PULGAR MÓVIL) ================= */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] print:hidden">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          {/* Resumen en vivo para el vendedor */}
-          <div
-            onClick={() => {
-              if (totalRollos > 0) setIsCarritoOpen(true);
-            }}
-            className="leading-tight cursor-pointer"
-          >
-            <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wide">
-              <span className="text-slate-800">
-                {totalRollos} {totalRollos === 1 ? 'rollo' : 'rollos'}
-              </span>
-              <span>·</span>
-              <span className="text-blue-700 font-black font-mono">
-                {totalMetros.toFixed(2)} m
-              </span>
             </div>
-            <div className="text-xl font-black text-[#0B2144] flex items-baseline gap-1 font-mono">
-              <span className="text-xs font-bold text-slate-500 font-sans">S/</span>
+          </div>
+        </header>
+
+        {/* SECCIÓN RÁPIDA DE CLIENTE & CONDICIÓN (MÓVIL) */}
+        <section className="p-3.5 bg-white border-b border-slate-200/90 shadow-2xs space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold shrink-0 border border-blue-200">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Cliente Asignado
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsModalClientesOpen(true)}
+                  className="text-xs font-black text-slate-900 truncate hover:text-blue-700 flex items-center gap-1 text-left cursor-pointer"
+                >
+                  <span className="truncate">{clienteNombre || 'Seleccionar Cliente...'}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsModalClientesOpen(true)}
+              className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-mono font-bold shrink-0 border border-slate-200 active:scale-95 cursor-pointer"
+            >
+              {clienteRuc || 'Elegir RUC'}
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCondicionPago('CONTADO')}
+                className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  condicionPago === 'CONTADO'
+                    ? 'font-black bg-emerald-600 text-white shadow-xs'
+                    : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <Wallet className="w-4 h-4" />
+                <span>Contado</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCondicionPago('CREDITO')}
+                className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  condicionPago === 'CREDITO'
+                    ? 'font-black bg-amber-600 text-white shadow-xs'
+                    : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <CalendarCheck className="w-4 h-4" />
+                <span>Crédito</span>
+              </button>
+            </div>
+
+            {condicionPago === 'CREDITO' && (
+              <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-extrabold text-amber-950 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Plazo (Letras):</span>
+                  </span>
+                  <span className="font-black text-amber-800 text-[11px] font-mono">
+                    {labelLetrasMap[numeroLetras]}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5 text-xs">
+                  {([1, 2, 3, 4] as const).map((cant) => (
+                    <button
+                      key={cant}
+                      type="button"
+                      onClick={() => setNumeroLetras(cant)}
+                      className={`py-2 rounded-xl text-[11px] text-center transition cursor-pointer ${
+                        numeroLetras === cant
+                          ? 'font-black bg-amber-600 text-white shadow-xs'
+                          : 'font-bold bg-white border border-amber-300 text-amber-900'
+                      }`}
+                    >
+                      {cant}L ({cant * 30}d)
+                    </button>
+                  ))}
+                </div>
+
+                <div className="text-[11px] text-amber-900 font-semibold flex items-center justify-between pt-1 border-t border-amber-200/70">
+                  <span>Monto por letra estimado:</span>
+                  <strong className="font-black font-mono text-xs text-amber-950">
+                    S/ {montoPorLetra.toFixed(2)} / cuota
+                  </strong>
+                </div>
+              </div>
+            )}
+
+            <div
+              className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl border transition ${
+                !requiereAprobacionJefeVentas
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-300'
+              }`}
+            >
+              {!requiereAprobacionJefeVentas ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+              )}
               <span>
-                {totalSoles.toLocaleString('es-PE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {condicionPago === 'CONTADO'
+                  ? 'Venta al Contado: Pasa directo a Créditos / Facturación'
+                  : !algunPrecioRebajado
+                  ? 'Precios oficiales respetados: Pasa directo a Créditos'
+                  : 'Requiere aprobación de Jefatura de Ventas (Crédito con rebaja)'}
               </span>
             </div>
           </div>
+        </section>
 
-          {/* Botón de Abrir Carrito & Pasarela */}
-          <button
-            type="button"
-            disabled={totalRollos === 0}
-            onClick={() => setIsCarritoOpen(true)}
-            className={`flex-1 max-w-xs py-3.5 px-4 font-black rounded-2xl flex items-center justify-center gap-2 text-xs transition active:scale-96 ${
-              totalRollos > 0
-                ? 'bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/25 cursor-pointer'
-                : 'bg-slate-300 text-slate-500 shadow-2xs cursor-not-allowed'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>{totalRollos > 0 ? `Ver Carrito (${totalRollos})` : 'Selecciona Rollos'}</span>
-          </button>
+        {/* LISTA JERÁRQUICA MÓVIL */}
+        <main className="p-3 space-y-3">
+          {catalogoFiltrado.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 text-center text-slate-400 space-y-2 border border-slate-200 shadow-2xs">
+              <Search className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="text-xs font-bold text-slate-600">
+                No encontramos telas con ese criterio de búsqueda.
+              </p>
+            </div>
+          ) : (
+            catalogoFiltrado.map((grupoLinea) => (
+              <section key={grupoLinea.linea} className="space-y-3">
+                <div className="flex items-center gap-2 px-1 pt-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                  <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
+                    {grupoLinea.linea}
+                  </h2>
+                </div>
+
+                {grupoLinea.articulos.map((art) => {
+                  const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
+                  let metrosTotalesArt = 0;
+                  let rollosTotalesArt = 0;
+                  art.colores.forEach((c) => {
+                    metrosTotalesArt += c.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+                    rollosTotalesArt += c.rollos.length;
+                  });
+
+                  return (
+                    <article
+                      key={`${grupoLinea.linea}_${art.codigoArticulo}`}
+                      className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden transition"
+                    >
+                      <div
+                        onClick={() => toggleArticulo(art.codigoArticulo)}
+                        className="p-3.5 bg-slate-50/80 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-100"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="px-2.5 h-8 rounded-xl bg-blue-100 text-blue-800 font-mono text-xs font-black flex items-center justify-center shrink-0 border border-blue-200">
+                            {art.codigoArticulo}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-xs font-black text-slate-900 truncate leading-snug">
+                              {art.nombreBase}
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold">
+                              {art.colores.length}{' '}
+                              {art.colores.length === 1 ? 'color disponible' : 'colores disponibles'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs font-black text-slate-900 font-mono">
+                              {metrosTotalesArt.toFixed(2)}{' '}
+                              <span className="text-[10px] text-blue-600 font-bold font-sans">m</span>
+                            </span>
+                            <div className="text-[10px] font-bold text-slate-500">
+                              {rollosTotalesArt} {rollosTotalesArt === 1 ? 'rollo' : 'rollos'}
+                            </div>
+                          </div>
+                          <div
+                            className={`w-7 h-7 rounded-xl bg-slate-200/60 flex items-center justify-center text-slate-600 text-xs transition-transform ${
+                              abiertoArt ? 'rotate-180 bg-blue-50 text-blue-700' : ''
+                            }`}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {abiertoArt && (
+                        <div className="divide-y divide-slate-100 p-2 space-y-2">
+                          {art.colores.map((col, idxColor) =>
+                            renderTarjetaVarianteColor(col, idxColor, false)
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </section>
+            ))
+          )}
+        </main>
+
+        {/* BARRA PERSISTENTE INFERIOR (SOLO MÓVIL) */}
+        <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-[0_-8px_25px_rgba(0,0,0,0.08)]">
+          <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+            <div
+              onClick={() => {
+                if (totalRollos > 0) setIsCarritoOpen(true);
+              }}
+              className="leading-tight cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wide">
+                <span className="text-slate-800">
+                  {totalRollos} {totalRollos === 1 ? 'rollo' : 'rollos'}
+                </span>
+                <span>·</span>
+                <span className="text-blue-700 font-black font-mono">
+                  {totalMetros.toFixed(2)} m
+                </span>
+              </div>
+              <div className="text-xl font-black text-[#0B2144] flex items-baseline gap-1 font-mono">
+                <span className="text-xs font-bold text-slate-500 font-sans">S/</span>
+                <span>
+                  {totalSoles.toLocaleString('es-PE', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={totalRollos === 0}
+              onClick={() => setIsCarritoOpen(true)}
+              className={`flex-1 py-3.5 px-4 font-black rounded-2xl flex items-center justify-center gap-2 text-xs transition ${
+                totalRollos > 0
+                  ? 'bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/25 cursor-pointer'
+                  : 'bg-slate-300 text-slate-500 shadow-2xs cursor-not-allowed'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>{totalRollos > 0 ? `Ver Carrito (${totalRollos})` : 'Selecciona Rollos'}</span>
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      {/* ========================================================================
+          VISTA 2: MODO COMPUTADORA / ESCRITORIO (lg:block) — Pantalla amplia a 2 paneles
+          ======================================================================== */}
+      <div className="hidden lg:block space-y-6 print:hidden">
+        {/* Cabecera Amplia de Escritorio */}
+        <div className="bg-[#0B2144] text-white rounded-3xl p-5 shadow-md border border-blue-900/50 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-3.5 shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-2xl text-white shadow-md border border-white/20">
+              8t
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black tracking-widest text-white">
+                  PUNTO DE VENTA (POS) & ARMADO DE PEDIDOS
+                </span>
+                <span className="text-[10px] bg-blue-500/20 text-blue-300 font-bold px-2 py-0.5 rounded-full border border-blue-400/30">
+                  ROLPICKING EN VIVO
+                </span>
+              </div>
+              <p className="text-xs text-blue-200 font-medium mt-0.5">
+                PERÚ | Donde nacen las futuras tendencias · Selecciona rollos a la izquierda y confirma la orden a la derecha
+              </p>
+            </div>
+          </div>
+
+          {/* Buscador Amplio en Cabecera Desktop */}
+          <div className="flex-1 max-w-xl">
+            <form onSubmit={handleBuscadorSubmit} className="relative">
+              <Search className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={busquedaTexto}
+                onChange={(e) => setBusquedaTexto(e.target.value)}
+                placeholder="Buscar por artículo, color, cód. color, rollo (ROL-...), metros o lote..."
+                className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+              />
+              {busquedaTexto && (
+                <button
+                  type="button"
+                  onClick={() => setBusquedaTexto('')}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              )}
+            </form>
+          </div>
+
+          {/* Filtros de Línea + Botón Pedidos Pendientes */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 bg-[#071833] p-1.5 rounded-2xl border border-blue-800/70">
+              <button
+                type="button"
+                onClick={() => setLineaFiltro('TODAS')}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
+                  lineaFiltro === 'TODAS'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Todas las Líneas
+              </button>
+              {lineasDisponibles.map((linea) => {
+                const activa = lineaFiltro.toLowerCase() === linea.toLowerCase();
+                return (
+                  <button
+                    key={linea}
+                    type="button"
+                    onClick={() => setLineaFiltro(linea)}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
+                      activa
+                        ? 'bg-blue-600 text-white shadow-xs font-black'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {linea}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={onIrAPedidosPendientes}
+              className="px-3.5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-blue-200 border border-white/10 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Clock className="w-4 h-4 text-amber-400" />
+              <span>Pedidos Pendientes</span>
+            </button>
+          </div>
         </div>
-      </footer>
 
-      {/* ================= PASARELA DEL CARRITO (BOTTOM SHEET COMPLETO) ================= */}
+        {/* Grilla Amplia de 12 Columnas: Catálogo (8 cols) + Pasarela de Pedido Fija (4 cols) */}
+        <div className="grid grid-cols-12 gap-6 items-start">
+          {/* COLUMNA IZQUIERDA (8 COLUMNAS): Catálogo Jerárquico en Grilla de 2 Columnas */}
+          <div className="col-span-8 space-y-5">
+            {catalogoFiltrado.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center text-slate-400 space-y-2 border border-slate-200 shadow-2xs">
+                <Search className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-600">
+                  No encontramos telas o rollos con ese criterio de búsqueda.
+                </p>
+              </div>
+            ) : (
+              catalogoFiltrado.map((grupoLinea) => (
+                <section key={grupoLinea.linea} className="space-y-3">
+                  {/* Encabezado de Línea Único */}
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-600" />
+                      <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">
+                        Línea: {grupoLinea.linea}
+                      </h2>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {grupoLinea.articulos.length}{' '}
+                      {grupoLinea.articulos.length === 1 ? 'artículo agrupado' : 'artículos agrupados'}
+                    </span>
+                  </div>
+
+                  {grupoLinea.articulos.map((art) => {
+                    const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
+                    let metrosTotalesArt = 0;
+                    let rollosTotalesArt = 0;
+                    art.colores.forEach((c) => {
+                      metrosTotalesArt += c.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+                      rollosTotalesArt += c.rollos.length;
+                    });
+
+                    return (
+                      <article
+                        key={`${grupoLinea.linea}_${art.codigoArticulo}`}
+                        className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden transition"
+                      >
+                        {/* Cabecera del Artículo */}
+                        <div
+                          onClick={() => toggleArticulo(art.codigoArticulo)}
+                          className="px-5 py-4 bg-slate-50/90 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="px-3.5 h-10 rounded-2xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200">
+                              {art.codigoArticulo}
+                            </span>
+                            <div className="min-w-0">
+                              <h3 className="text-base font-black text-slate-900 truncate">
+                                {art.nombreBase}
+                              </h3>
+                              <p className="text-xs text-slate-500 font-semibold">
+                                {art.colores.length} variantes de color en catálogo · Línea{' '}
+                                {grupoLinea.linea}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                              <span className="text-base font-black text-slate-900 font-mono">
+                                {metrosTotalesArt.toFixed(2)}{' '}
+                                <span className="text-xs text-blue-600 font-bold font-sans">m</span>
+                              </span>
+                              <div className="text-xs font-bold text-slate-500 flex items-center justify-end gap-1">
+                                <Layers className="w-3.5 h-3.5 text-blue-600" />
+                                <span>
+                                  {rollosTotalesArt} {rollosTotalesArt === 1 ? 'rollo disponible' : 'rollos disponibles'}
+                                </span>
+                              </div>
+                            </div>
+                            <div
+                              className={`w-8 h-8 rounded-xl bg-slate-200/70 flex items-center justify-center text-slate-600 transition-transform ${
+                                abiertoArt ? 'rotate-180 bg-blue-50 text-blue-700' : ''
+                              }`}
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grilla de 2 Columnas de Variantes de Color en Escritorio */}
+                        {abiertoArt && (
+                          <div className="p-4 grid grid-cols-2 gap-3.5 bg-slate-50/40">
+                            {art.colores.map((col, idxColor) =>
+                              renderTarjetaVarianteColor(col, idxColor, true)
+                            )}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </section>
+              ))
+            )}
+          </div>
+
+          {/* COLUMNA DERECHA (4 COLUMNAS FIJAS): Cliente, Condición de Pago y Pasarela de Pedido */}
+          <div className="col-span-4 sticky top-20 space-y-4">
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md overflow-hidden">
+              {/* Cabecera del Panel Derecho */}
+              <div className="bg-[#0B2144] text-white px-5 py-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-300 block">
+                    PASARELA DE PEDIDO
+                  </span>
+                  <h3 className="text-sm font-black text-white">
+                    Cliente, Condición y Rollos ({totalRollos})
+                  </h3>
+                </div>
+                <span className="bg-amber-500 text-white text-xs font-black px-2.5 py-1 rounded-full font-mono">
+                  {totalMetros.toFixed(2)} m
+                </span>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {/* 1. Selector de Cliente en PC */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-blue-600" />
+                      <span>1. Cliente Asignado</span>
+                    </span>
+                    {onIrAClientes && (
+                      <button
+                        type="button"
+                        onClick={onIrAClientes}
+                        className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>+ Nuevo Cliente</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {clientes.length > 0 && (
+                    <select
+                      value={selectedClienteId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setSelectedClienteId(id);
+                        const found = clientes.find((c) => c.id === id);
+                        if (found) {
+                          setClienteNombre(found.razon_social);
+                          setClienteRuc(found.ruc);
+                          setClienteTelefono(found.telefonos || '');
+                          setClienteCorreo(found.correos || '');
+                          setClienteDireccion(found.direccion || '');
+                        }
+                      }}
+                      className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="">-- Elegir de la cartera ({clientes.length}) --</option>
+                      {clientes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.razon_social} — RUC: {c.ruc}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-2">
+                    <input
+                      type="text"
+                      value={clienteNombre}
+                      onChange={(e) => setClienteNombre(e.target.value)}
+                      placeholder="Razón Social o Nombre del Cliente *"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={clienteRuc}
+                        onChange={(e) => setClienteRuc(e.target.value)}
+                        placeholder="RUC / DNI"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={clienteTelefono}
+                        onChange={(e) => setClienteTelefono(e.target.value)}
+                        placeholder="Teléfono"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Condición Contado / Crédito y Letras */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCondicionPago('CONTADO')}
+                      className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        condicionPago === 'CONTADO'
+                          ? 'font-black bg-emerald-600 text-white shadow-xs'
+                          : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>Contado</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCondicionPago('CREDITO')}
+                      className={`py-2.5 rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        condicionPago === 'CREDITO'
+                          ? 'font-black bg-amber-600 text-white shadow-xs'
+                          : 'font-bold bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      <CalendarCheck className="w-4 h-4" />
+                      <span>Crédito</span>
+                    </button>
+                  </div>
+
+                  {condicionPago === 'CREDITO' && (
+                    <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-amber-950">Plazo en Letras:</span>
+                        <span className="font-black text-amber-800 text-[11px] font-mono">
+                          {labelLetrasMap[numeroLetras]}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-xs">
+                        {([1, 2, 3, 4] as const).map((cant) => (
+                          <button
+                            key={cant}
+                            type="button"
+                            onClick={() => setNumeroLetras(cant)}
+                            className={`py-1.5 rounded-xl text-[11px] text-center transition cursor-pointer ${
+                              numeroLetras === cant
+                                ? 'font-black bg-amber-600 text-white shadow-xs'
+                                : 'font-bold bg-white border border-amber-300 text-amber-900'
+                            }`}
+                          >
+                            {cant}L ({cant * 30}d)
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-amber-900 font-semibold flex items-center justify-between pt-1 border-t border-amber-200/70">
+                        <span>Cuota estimada:</span>
+                        <strong className="font-black font-mono text-xs text-amber-950">
+                          S/ {montoPorLetra.toFixed(2)} / letra
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div
+                    className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl border transition ${
+                      !requiereAprobacionJefeVentas
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-50 text-amber-900 border-amber-300'
+                    }`}
+                  >
+                    {!requiereAprobacionJefeVentas ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    )}
+                    <span>
+                      {condicionPago === 'CONTADO'
+                        ? 'Venta al Contado: Pasa directo a Créditos / Facturación'
+                        : !algunPrecioRebajado
+                        ? 'Precios oficiales respetados: Pasa directo a Créditos'
+                        : 'Requiere aprobación de Jefatura de Ventas (Crédito con rebaja)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Lista de Rollos Seleccionados en el Pedido */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-black text-slate-700 uppercase tracking-wider text-[11px]">
+                      Rollos en el Pedido ({totalRollos})
+                    </span>
+                    {totalRollos > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setRollosSeleccionadosIds([])}
+                        className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Vaciar
+                      </button>
+                    )}
+                  </div>
+
+                  {gruposEnCarrito.length === 0 ? (
+                    <div className="p-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center text-xs text-slate-400">
+                      Haz clic en <strong>"+ Marcar"</strong> sobre cualquier rollo disponible a la izquierda para agregarlo al pedido.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
+                      {gruposEnCarrito.map((grupo) => (
+                        <div
+                          key={grupo.tela.id}
+                          className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-black text-slate-900 text-xs leading-tight">
+                                {grupo.tela.codigo} · {grupo.tela.nombre}
+                              </h4>
+                              <p className="text-[11px] font-bold text-blue-700">
+                                Cód. {grupo.tela.codigo_color} · {grupo.tela.color}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="flex items-center gap-1 justify-end">
+                                <span className="font-black text-slate-600 text-xs">S/</span>
+                                <input
+                                  type="number"
+                                  step="0.10"
+                                  min="0.10"
+                                  value={grupo.precioNegociado}
+                                  onChange={(e) =>
+                                    actualizarPrecioColor(grupo.tela, e.target.value)
+                                  }
+                                  className="w-16 text-right font-black text-xs bg-white border border-blue-400 rounded-lg py-0.5 px-1 font-mono"
+                                />
+                                <span className="text-[10px] text-slate-400 font-bold">/m</span>
+                              </div>
+                              <div className="font-black text-slate-900 text-xs mt-0.5 font-mono">
+                                S/ {grupo.subtotalSoles.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 pt-1 border-t border-slate-200/80">
+                            {grupo.rollos.map((r) => (
+                              <div
+                                key={r.id}
+                                className="flex items-center justify-between text-[11px] text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-100"
+                              >
+                                <span className="font-mono font-bold text-slate-700">
+                                  {r.codigo_rollo}
+                                </span>
+                                <span className="font-bold font-mono">
+                                  {r.metraje.toFixed(2)} m
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setRollosSeleccionadosIds((prev) =>
+                                      prev.filter((id) => id !== r.id)
+                                    )
+                                  }
+                                  className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
+                                  title="Quitar del pedido"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Resumen e Importe Total */}
+                <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/90 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Rollos Físicos Totales:</span>
+                    <strong className="text-slate-900 font-black font-mono">
+                      {totalRollos} rollos
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Metraje Total Exacto:</span>
+                    <strong className="text-blue-800 font-black font-mono">
+                      {totalMetros.toFixed(2)} m
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-baseline text-sm font-black text-[#0B2144] pt-2 border-t border-blue-200">
+                    <span>Importe Total:</span>
+                    <span className="text-xl text-blue-900 font-mono">
+                      S/{' '}
+                      {totalSoles.toLocaleString('es-PE', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. Botones de Acción y Confirmación */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      disabled={totalRollos === 0}
+                      onClick={() => enviarPorWhatsApp()}
+                      className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>WhatsApp</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={totalRollos === 0}
+                      onClick={enviarPorCorreo}
+                      className="py-2 px-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Correo</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={totalRollos === 0}
+                      onClick={imprimirPedido}
+                      className="py-2 px-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>Imprimir</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={totalRollos === 0}
+                    onClick={confirmarOrdenDesdeCarrito}
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 disabled:opacity-40 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 transition cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Confirmar y Registrar Pedido ({totalRollos})</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ================= PASARELA DEL CARRITO MÓVIL (BOTTOM SHEET) ================= */}
       {isCarritoOpen && (
         <div
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150 print:hidden"
@@ -1235,7 +1765,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl border-t sm:border border-slate-200 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Manija y Encabezado del Carrito */}
             <div className="p-4 pb-2 border-b border-slate-100 shrink-0">
               <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden" />
               <div className="flex items-center justify-between">
@@ -1260,9 +1789,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               </div>
             </div>
 
-            {/* Contenido Scrolleable del Carrito */}
             <div className="p-4 overflow-y-auto space-y-3.5 flex-1 divide-y divide-slate-100">
-              {/* Tarjeta Resumen Cliente & Condición */}
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
                 <div className="flex justify-between items-center text-slate-500 gap-2">
                   <span>Cliente:</span>
@@ -1305,7 +1832,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 )}
               </div>
 
-              {/* Lista Detallada de Ítems en Carrito con Edición de P. Metro */}
               <div className="space-y-3 pt-2">
                 {gruposEnCarrito.map((grupo) => (
                   <div
@@ -1325,7 +1851,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                         </p>
                       </div>
 
-                      {/* Edición de P. Metro directo en Carrito */}
                       <div className="text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <span className="font-black text-slate-600 text-xs">S/</span>
@@ -1345,7 +1870,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Rollos incluidos (quitar del carrito, NO del inventario) */}
                     <div className="space-y-1 pt-1 border-t border-slate-200/80">
                       {grupo.rollos.map((r) => (
                         <div
@@ -1377,7 +1901,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 ))}
               </div>
 
-              {/* Totales Finales */}
               <div className="pt-3 space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-500">
                   <span>Rollos Físicos Totales:</span>
@@ -1397,49 +1920,44 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 </div>
               </div>
 
-              {/* Pasarela de Acciones Rápidas (WhatsApp, Correo, Imprimir) */}
               <div className="pt-3 space-y-2.5">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">
                   Acciones Inmediatas de Cierre
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  {/* Botón WhatsApp */}
                   <button
                     type="button"
                     onClick={() => enviarPorWhatsApp()}
-                    className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                    className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 shadow-2xs cursor-pointer"
                   >
                     <MessageCircle className="w-5 h-5" />
                     <span>WhatsApp</span>
                   </button>
 
-                  {/* Botón Correo */}
                   <button
                     type="button"
                     onClick={enviarPorCorreo}
-                    className="py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                    className="py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 shadow-2xs cursor-pointer"
                   >
                     <Mail className="w-5 h-5" />
                     <span>Por Correo</span>
                   </button>
 
-                  {/* Botón Imprimir Pedido */}
                   <button
                     type="button"
                     onClick={imprimirPedido}
-                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 active:scale-96 shadow-2xs cursor-pointer"
+                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-1 shadow-2xs cursor-pointer"
                   >
                     <Printer className="w-5 h-5" />
                     <span>Imprimir</span>
                   </button>
                 </div>
 
-                {/* Botón Confirmar Orden en Sistema */}
                 <button
                   type="button"
                   onClick={confirmarOrdenDesdeCarrito}
-                  className="w-full py-3.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 active:scale-96 transition cursor-pointer"
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/25 transition cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Confirmar y Registrar Pedido</span>
@@ -1450,7 +1968,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL SELECTOR DE CLIENTE (DE CARTERA O MANUAL) ================= */}
+      {/* ================= MODAL SELECTOR DE CLIENTE ================= */}
       {isModalClientesOpen && (
         <div
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150 print:hidden"
@@ -1541,7 +2059,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               )}
             </div>
 
-            {/* Edición rápida manual */}
             <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Datos del Cliente Activo
@@ -1645,7 +2162,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               <button
                 type="button"
                 onClick={() => enviarPorWhatsApp(pedidoExitoso.pedido.codigo_pedido)}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-96 transition cursor-pointer"
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>Compartir por WhatsApp</span>
@@ -1654,7 +2171,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               <button
                 type="button"
                 onClick={onIrAPedidosPendientes}
-                className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-2xl text-xs active:scale-96 transition cursor-pointer"
+                className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-2xl text-xs transition cursor-pointer"
               >
                 Ver en Pedidos Pendientes
               </button>
@@ -1662,7 +2179,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               <button
                 type="button"
                 onClick={iniciarNuevoPedidoCalle}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl text-xs active:scale-96 transition cursor-pointer"
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl text-xs transition cursor-pointer"
               >
                 Tomar Otro Pedido
               </button>

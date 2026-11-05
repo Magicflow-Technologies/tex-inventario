@@ -106,6 +106,23 @@ function encodePrecioListaInLote(precioLista: number): string {
   return `[PRECIO_LISTA:${Number(precioLista || 0).toFixed(2)}]`;
 }
 
+export function normalizeSpaces(text?: string | null): string {
+  return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+export function normalizeLinea(rawLinea?: string | null): string {
+  const clean = normalizeSpaces(rawLinea);
+  if (!clean) return 'Moda Masculino';
+  if (/^moda\s+ma?s?culin[oa]$/i.test(clean)) {
+    return 'Moda Masculino';
+  }
+  // Title case words
+  return clean
+    .split(' ')
+    .map((w) => (w.length > 2 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(' ');
+}
+
 class InventoryStore {
   private perfiles: Perfil[] = [];
   private usuarios: Usuario[] = [];
@@ -216,12 +233,31 @@ class InventoryStore {
         permisos: Array.isArray(p.permisos) ? p.permisos : [],
       }));
       this.usuarios = usuarios;
-      this.telas = telas.map((t) => ({
-        ...t,
-        precio_lista: parsePrecioListaFromTela(t),
-        ancho: Number(t.ancho) || 1.5,
-        stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
-      }));
+      this.telas = telas.map((t) => {
+        const cleanNombre = normalizeSpaces(t.nombre).replace(/8Tex/g, '8tex');
+        const cleanColor = normalizeSpaces(t.color);
+        const cleanLinea = normalizeLinea(t.linea);
+        if (cleanNombre !== t.nombre || cleanColor !== t.color || cleanLinea !== t.linea) {
+          void supabaseRest
+            .update('telas', `id=eq.${t.id}`, {
+              nombre: cleanNombre,
+              color: cleanColor,
+              linea: cleanLinea,
+            })
+            .catch(() => null);
+        }
+        return {
+          ...t,
+          codigo: normalizeSpaces(t.codigo).toUpperCase(),
+          codigo_color: normalizeSpaces(t.codigo_color),
+          nombre: cleanNombre,
+          color: cleanColor,
+          linea: cleanLinea,
+          precio_lista: parsePrecioListaFromTela(t),
+          ancho: Number(t.ancho) || 1.5,
+          stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
+        };
+      });
       this.rollos = rollos.map((r) => ({
         ...r,
         metraje: Number(r.metraje),
@@ -743,11 +779,11 @@ class InventoryStore {
 
         return {
           tela_id: tela.id,
-          codigo: tela.codigo,
-          nombre: tela.nombre,
-          codigo_color: tela.codigo_color || '000',
-          color: tela.color,
-          linea: tela.linea || 'General',
+          codigo: normalizeSpaces(tela.codigo).toUpperCase(),
+          nombre: normalizeSpaces(tela.nombre).replace(/8Tex/g, '8tex'),
+          codigo_color: normalizeSpaces(tela.codigo_color) || '000',
+          color: normalizeSpaces(tela.color),
+          linea: normalizeLinea(tela.linea),
           precio_lista: parsePrecioListaFromTela(tela),
           ancho: Number(tela.ancho) || 1.5,
           unidad_medida: tela.unidad_medida,
