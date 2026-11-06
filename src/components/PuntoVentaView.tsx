@@ -1234,17 +1234,9 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               8t
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black tracking-widest text-white">
-                  PUNTO DE VENTA (POS) & ARMADO DE PEDIDOS
-                </span>
-                <span className="text-[10px] bg-blue-500/20 text-blue-300 font-bold px-2 py-0.5 rounded-full border border-blue-400/30">
-                  ROLPICKING EN VIVO
-                </span>
-              </div>
-              <p className="text-xs text-blue-200 font-medium mt-0.5">
-                PERÚ | Donde nacen las futuras tendencias · Selecciona rollos a la izquierda y confirma la orden a la derecha
-              </p>
+              <span className="text-sm font-black tracking-widest text-white">
+                PUNTO DE VENTA (POS)
+              </span>
             </div>
           </div>
 

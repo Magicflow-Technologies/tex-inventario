@@ -67,13 +67,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Textiles Ocho Lukal
               </button>
-              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+              <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
                     supabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'
                   }`}
                 />
-                <span>ochotex_bd</span>
+                <span>{supabaseConnected ? 'En línea' : 'Modo local'}</span>
               </span>
             </div>
           </div>

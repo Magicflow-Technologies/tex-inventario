@@ -263,22 +263,14 @@ export const PedidosPorFacturarView: React.FC<PedidosPorFacturarViewProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header adaptable a celular y escritorio */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1a73e8] text-[11px] sm:text-xs font-semibold mb-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Seguimiento de Órdenes y Aprobaciones</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center shrink-0 border border-blue-100">
+            <Clock className="w-5 h-5" />
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Pedidos Pendientes
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 max-w-2xl">
-            Órdenes realizadas por los vendedores con su fase de aprobación en tiempo real:{' '}
-            <span className="font-semibold text-slate-700">J. Ventas / Aprob.</span> →{' '}
-            <span className="font-semibold text-slate-700">Créd. y Fin. / Aprob.</span> →{' '}
-            <span className="font-semibold text-slate-700">Almacén / Fact.</span> →{' '}
-            <span className="font-semibold text-slate-700">Almacén / Desp.</span>
-          </p>
         </div>
 
         <button

@@ -148,18 +148,14 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Encabezado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1a73e8] text-[11px] sm:text-xs font-semibold mb-1.5">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Directorio Comercial · Sincronizado con POS</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center shrink-0 border border-blue-100">
+            <Building2 className="w-5 h-5" />
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-            Registro de Clientes
+            Directorio de Clientes
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Administra los clientes de Textiles Ocho Lukal E.I.R.L. para seleccionarlos rápidamente al realizar una venta en el POS.
-          </p>
         </div>
 
         <button

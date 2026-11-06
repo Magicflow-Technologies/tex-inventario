@@ -64,14 +64,14 @@ export default function App() {
     }, 5000);
   };
 
-  // Si no hay sesión iniciada, mostrar validación contra ochotex_bd.usuarios y ochotex_bd.perfiles
+  // Si no hay sesión iniciada, mostrar pantalla de inicio de sesión
   if (!currentUser) {
     return (
       <LoginView
         onLoginSuccess={(u) => {
           showToast(
             `Bienvenido, ${u.nombre_completo}`,
-            `Sesión autenticada con perfil ${u.perfil.nombre} (${u.perfil.codigo}) en ochotex_bd.`
+            `Sesión iniciada con perfil ${u.perfil.nombre}.`
           );
         }}
       />
@@ -302,11 +302,7 @@ export default function App() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-slate-900">Textiles Ocho Lukal E.I.R.L.</span>
             <span>·</span>
-            <span className="text-slate-600">Punto de Venta (POS) & Control Físico Rollo a Rollo</span>
-            <span>·</span>
-            <span className="font-mono text-[#1a73e8] font-semibold">
-              Supabase (ochotex_bd) {connStatus.connected ? 'Conectado' : 'Modo Local'}
-            </span>
+            <span className="text-slate-600">Sistema de Inventario y Punto de Venta</span>
           </div>
 
           <div className="flex items-center gap-4 text-slate-600">

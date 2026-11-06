@@ -214,19 +214,14 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-50 text-[#1a73e8] text-xs font-semibold mb-2">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Seguridad & Control de Acceso (ochotex_bd)</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center shrink-0 border border-blue-100">
+            <Shield className="w-5 h-5" />
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-            Gestión de Perfiles y Usuarios (Supabase)
+            Usuarios y Perfiles
           </h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Administración en tiempo real de las tablas <code className="font-mono text-[#1a73e8] font-semibold">ochotex_bd.perfiles</code> y{' '}
-            <code className="font-mono text-[#1a73e8] font-semibold">ochotex_bd.usuarios</code> utilizadas para validar el ingreso al sistema.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">

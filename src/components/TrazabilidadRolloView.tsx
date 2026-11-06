@@ -59,17 +59,13 @@ export const TrazabilidadRolloView: React.FC<TrazabilidadRolloViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-50 text-[#1a73e8] text-xs font-semibold mb-2">
-          <ScanBarcode className="w-3.5 h-3.5" />
-          <span>Consulta Individual (Consulta 2)</span>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1a73e8] flex items-center justify-center shrink-0 border border-blue-100">
+          <ScanBarcode className="w-5 h-5" />
         </div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Trazabilidad Rollo a Rollo (UUIDv4)
+          Trazabilidad de Rollos
         </h1>
-        <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-          Búsqueda puntual de cada rollo físico. Cada pieza es una entidad física única, verificable por código de barras o QR con su historial completo de ingresos, reservas y facturación.
-        </p>
       </div>
 
       {/* Buscador & Scanner */}

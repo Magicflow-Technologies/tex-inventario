@@ -703,17 +703,9 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
               8t
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black tracking-wider text-white uppercase">
-                  Consulta de Stock Físico · Rollo a Rollo
-                </span>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-bold border border-blue-400/30 uppercase">
-                  Inventario en Tiempo Real
-                </span>
-              </div>
-              <p className="text-xs text-blue-200/90 font-medium mt-0.5">
-                Visualiza todas las variantes de color, rollos físicos en almacén y precios de lista para armar pedidos rápidamente
-              </p>
+              <span className="text-sm font-black tracking-wider text-white uppercase">
+                Consulta de Stock
+              </span>
             </div>
           </div>
 
@@ -805,10 +797,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                             </span>
                           </div>
                           <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
-                            {grupo.nombreBase}{' '}
-                            <span className="text-blue-600 font-normal ml-1">
-                              ({estaAbierto ? 'Clic para ocultar colores' : 'Clic para desplegar códigos de colores'})
-                            </span>
+                            {grupo.nombreBase}
                           </p>
                         </div>
                       </div>

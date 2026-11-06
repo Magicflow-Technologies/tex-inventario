@@ -124,16 +124,10 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Encabezado y Contexto Operativo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-4 sm:pb-5">
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Stock Físico Consolidado
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Control de inventario en tiempo real según Consulta 1. Sumatoria física de rollos en estado{' '}
-            <span className="font-mono font-semibold text-slate-800">DISPONIBLE</span>.
-          </p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+          Stock General
+        </h1>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-2xs">
@@ -757,17 +751,10 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                           <td colSpan={11} className="bg-slate-50/70 p-0 border-y border-slate-200">
                             <div className="p-4 sm:p-5 space-y-3">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
-                                <div>
-                                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                                    <Warehouse className="w-4 h-4 text-[#1a73e8]" />
-                                    <span>
-                                      Rollos Físicos Disponibles en Almacén (Orden FIFO por Antigüedad)
-                                    </span>
-                                  </h3>
-                                  <p className="text-xs text-slate-500 mt-0.5">
-                                    Consulta 3 SQL: Ordenados por fecha de ingreso ascendente para priorizar despacho First In, First Out.
-                                  </p>
-                                </div>
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                                  <Warehouse className="w-4 h-4 text-[#1a73e8]" />
+                                  <span>Rollos Físicos Disponibles en Almacén</span>
+                                </h3>
                                 {item.total_rollos_disponibles > 0 && onArmarPedidoConTela && (
                                   <button
                                     onClick={() => onArmarPedidoConTela(item.tela_id)}
