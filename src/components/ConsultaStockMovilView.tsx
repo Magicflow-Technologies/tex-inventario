@@ -754,10 +754,10 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           </div>
         </div>
 
-        {/* Grilla Principal de 12 Columnas: Tabla Completa de Stock (8 cols) + Panel de Pedido Rápido (4 cols) */}
+        {/* Grilla Principal de 12 Columnas: Tabla Completa de Stock (12 cols cuando no hay pedido, 8+4 cuando hay pedido en armado) */}
         <div className="grid grid-cols-12 gap-6 items-start">
-          {/* COLUMNA IZQUIERDA (8 COLUMNAS): Tabla Amplia Agrupada por Línea y Código de Artículo */}
-          <div className="col-span-8 space-y-5">
+          {/* COLUMNA PRINCIPAL: Tabla Amplia Agrupada por Línea y Código de Artículo */}
+          <div className={`${pedidoActual.length > 0 ? 'col-span-8' : 'col-span-12'} space-y-5`}>
             {gruposFiltrados.length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center text-slate-400 space-y-2 border border-slate-200 shadow-xs">
                 <Package className="w-10 h-10 text-slate-300 mx-auto" />
@@ -994,7 +994,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             )}
           </div>
 
-          {/* COLUMNA DERECHA FIJA EN COMPUTADORA (4 COLUMNAS): Resumen de Pedido en Vivo */}
+          {/* COLUMNA DERECHA FIJA EN COMPUTADORA (4 COLUMNAS): Visible cuando se agregan colores al pedido */}
+          {pedidoActual.length > 0 && (
           <div className="col-span-4 sticky top-20">
             <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md overflow-hidden flex flex-col">
               {/* Cabecera del Panel Derecho */}
@@ -1166,6 +1167,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 

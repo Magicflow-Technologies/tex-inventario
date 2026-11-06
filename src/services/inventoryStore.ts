@@ -175,7 +175,16 @@ class InventoryStore {
       if (storedTelas && storedRollos && storedMovs && storedDet && storedPed && storedPedDet) {
         this.perfiles = storedPerfiles ? JSON.parse(storedPerfiles) : JSON.parse(JSON.stringify(SEED_PERFILES));
         this.usuarios = storedUsuarios ? JSON.parse(storedUsuarios) : JSON.parse(JSON.stringify(SEED_USUARIOS));
-        this.telas = JSON.parse(storedTelas);
+        const rawLocalTelas: Tela[] = JSON.parse(storedTelas);
+        this.telas = rawLocalTelas.map((t) => ({
+          ...t,
+          codigo: normalizeSpaces(t.codigo).toUpperCase(),
+          codigo_color: normalizeSpaces(t.codigo_color),
+          nombre: normalizeSpaces(t.nombre).replace(/8Tex/g, '8tex'),
+          color: normalizeSpaces(t.color),
+          linea: normalizeLinea(t.linea),
+          precio_lista: parsePrecioListaFromTela(t),
+        }));
         this.rollos = JSON.parse(storedRollos);
         this.movimientos = JSON.parse(storedMovs);
         this.detalles = JSON.parse(storedDet);
