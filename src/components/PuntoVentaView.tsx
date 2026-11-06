@@ -702,10 +702,10 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="flex flex-col items-center shrink-0">
                 <span
-                  className={`px-2.5 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border ${
+                  className={`px-2.5 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border-2 shadow-2xs ${
                     tieneStock
-                      ? 'bg-slate-900 text-white border-slate-800'
-                      : 'bg-slate-200 text-slate-500 border-slate-300'
+                      ? 'bg-white text-slate-900 border-slate-400'
+                      : 'bg-slate-100 text-slate-500 border-slate-300'
                   }`}
                 >
                   {col.codigoColor}
@@ -878,21 +878,21 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           VISTA 1: MODO CELULAR (< lg) — Diseño ergonómico de una mano
           ======================================================================== */}
       <div className="lg:hidden max-w-md mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md print:hidden">
-        {/* TOP APP BAR MÓVIL */}
-        <header className="sticky top-0 z-30 bg-[#0B2144] text-white shadow-md border-b border-blue-900/50">
+        {/* TOP APP BAR MÓVIL CLARA Y MARCADA */}
+        <header className="sticky top-0 z-30 bg-white text-slate-900 shadow-xs border-b border-slate-200">
           <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-md border border-white/20">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-xl text-blue-700">
                 8t
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black tracking-widest text-white">8TEX</span>
-                  <span className="text-[9px] bg-blue-500/20 text-blue-300 font-bold px-1.5 py-0.5 rounded border border-blue-400/30">
+                  <span className="text-xs font-black tracking-widest text-slate-900">8TEX</span>
+                  <span className="text-[9px] bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">
                     CALLE
                   </span>
                 </div>
-                <p className="text-[10px] text-blue-200 font-medium">
+                <p className="text-[10px] text-slate-500 font-medium">
                   PERÚ | Donde nacen las futuras tendencias
                 </p>
               </div>
@@ -907,11 +907,11 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   setIsCarritoOpen(true);
                 }
               }}
-              className="relative w-10 h-10 rounded-2xl bg-blue-600/50 hover:bg-blue-600 text-white flex items-center justify-center active:scale-95 transition border border-white/20 shadow-xs cursor-pointer"
+              className="relative w-10 h-10 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center active:scale-95 transition shadow-xs cursor-pointer"
             >
               <ShoppingCart className="w-5 h-5" />
               {totalRollos > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md border-2 border-[#0B2144]">
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md border-2 border-white">
                   {totalRollos}
                 </span>
               )}
@@ -919,21 +919,21 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           </div>
 
           {/* Buscador Móvil */}
-          <div className="px-4 pb-3 pt-1">
-            <form onSubmit={handleBuscadorSubmit} className="relative">
+          <div className="px-4 pb-3 pt-1 bg-slate-50/70 border-t border-slate-100">
+            <form onSubmit={handleBuscadorSubmit} className="relative mt-2">
               <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
               <input
                 type="text"
                 value={busquedaTexto}
                 onChange={(e) => setBusquedaTexto(e.target.value)}
                 placeholder="Buscar por artículo, color o rollo (ej: C-900, Silka, 4150)..."
-                className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-10 pr-10 py-3 text-xs font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+                className="w-full bg-white text-slate-900 placeholder-slate-400 rounded-2xl pl-10 pr-10 py-3 text-xs font-semibold border border-slate-300 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
               />
               {busquedaTexto && (
                 <button
                   type="button"
                   onClick={() => setBusquedaTexto('')}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -949,7 +949,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   className={`px-3.5 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
                     lineaFiltro === 'TODAS'
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                   }`}
                 >
                   Todas las Líneas
@@ -964,7 +964,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                       className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
                         activa
                           ? 'bg-blue-600 text-white shadow-xs font-black'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                          : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
                       {linea}
@@ -1233,14 +1233,14 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           VISTA 2: MODO COMPUTADORA / ESCRITORIO (lg:block) — Pantalla amplia a 2 paneles
           ======================================================================== */}
       <div className="hidden lg:block space-y-6 print:hidden">
-        {/* Cabecera Amplia de Escritorio */}
-        <div className="bg-[#0B2144] text-white rounded-3xl p-5 shadow-md border border-blue-900/50 flex items-center justify-between gap-6">
+        {/* Cabecera Amplia de Escritorio Clara y Marcada */}
+        <div className="bg-white text-slate-900 rounded-3xl p-5 shadow-xs border border-slate-200 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-2xl text-white shadow-md border border-white/20">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-2xl text-blue-700">
               8t
             </div>
             <div>
-              <span className="text-sm font-black tracking-widest text-white">
+              <span className="text-sm font-black tracking-widest text-slate-900">
                 PUNTO DE VENTA (POS)
               </span>
             </div>
@@ -1255,13 +1255,13 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 value={busquedaTexto}
                 onChange={(e) => setBusquedaTexto(e.target.value)}
                 placeholder="Buscar por artículo, color, cód. color, rollo (ROL-...), metros o lote..."
-                className="w-full bg-[#071833] text-white placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-semibold border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+                className="w-full bg-white text-slate-900 placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-semibold border border-slate-300 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
               />
               {busquedaTexto && (
                 <button
                   type="button"
                   onClick={() => setBusquedaTexto('')}
-                  className="absolute right-3.5 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -1272,14 +1272,14 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           {/* Filtros de Línea + Botón Pedidos Pendientes */}
           <div className="flex items-center gap-2 shrink-0">
             {lineasDisponibles.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-[#071833] p-1.5 rounded-2xl border border-blue-800/70">
+              <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-2xl border border-slate-300">
                 <button
                   type="button"
                   onClick={() => setLineaFiltro('TODAS')}
                   className={`px-3 py-1.5 rounded-xl font-black text-xs whitespace-nowrap transition cursor-pointer ${
                     lineaFiltro === 'TODAS'
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-300 hover:text-white'
+                      : 'text-slate-700 hover:bg-slate-200/70'
                   }`}
                 >
                   Todas las Líneas
@@ -1294,7 +1294,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                       className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition cursor-pointer ${
                         activa
                           ? 'bg-blue-600 text-white shadow-xs font-black'
-                          : 'text-slate-300 hover:text-white'
+                          : 'text-slate-700 hover:bg-slate-200/70'
                       }`}
                     >
                       {linea}
@@ -1307,9 +1307,9 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             <button
               type="button"
               onClick={onIrAPedidosPendientes}
-              className="px-3.5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-blue-200 border border-white/10 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              className="px-3.5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
             >
-              <Clock className="w-4 h-4 text-amber-400" />
+              <Clock className="w-4 h-4 text-amber-500" />
               <span>Pedidos Pendientes</span>
             </button>
           </div>
@@ -1420,16 +1420,16 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           <div className="col-span-4 sticky top-20 space-y-4">
             <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md overflow-hidden">
               {/* Cabecera del Panel Derecho */}
-              <div className="bg-[#0B2144] text-white px-5 py-4 flex items-center justify-between">
+              <div className="bg-slate-50 text-slate-900 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-300 block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 block">
                     PASARELA DE PEDIDO
                   </span>
-                  <h3 className="text-sm font-black text-white">
+                  <h3 className="text-sm font-black text-slate-900">
                     Cliente, Condición y Rollos ({totalRollos})
                   </h3>
                 </div>
-                <span className="bg-amber-500 text-white text-xs font-black px-2.5 py-1 rounded-full font-mono">
+                <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-full font-mono">
                   {totalMetros.toFixed(2)} m
                 </span>
               </div>
@@ -2292,8 +2292,8 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
       {/* ================= NOTIFICACIÓN TOAST RÁPIDA ================= */}
       {toastMsg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0B2144] text-white px-4 py-2.5 rounded-2xl shadow-xl border border-blue-400/40 flex items-center gap-2 text-xs font-bold animate-in fade-in duration-150 print:hidden">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-white text-slate-900 px-4 py-2.5 rounded-2xl shadow-xl border-2 border-slate-300 flex items-center gap-2 text-xs font-bold animate-in fade-in duration-150 print:hidden">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{toastMsg}</span>
         </div>
       )}

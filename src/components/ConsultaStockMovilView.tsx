@@ -177,15 +177,15 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           VISTA 1: MODO CELULAR (lg:hidden) — Diseño compacto para una mano
           ============================================================================ */}
       <div className="lg:hidden max-w-md mx-auto bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md">
-        {/* TOP APP BAR MÓVIL (#0F284E) */}
-        <header className="bg-[#0F284E] text-white shadow-md border-b border-blue-900/50">
+        {/* TOP APP BAR MÓVIL CLARA Y MARCADA */}
+        <header className="bg-white text-slate-900 shadow-xs border-b border-slate-200">
           <div className="px-4 py-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center font-black text-lg text-blue-200 shadow-inner">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-lg text-blue-700">
                 8t
               </div>
               <div>
-                <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight">
+                <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 leading-tight">
                   Consulta de Stock
                 </h1>
               </div>
@@ -204,21 +204,21 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           </div>
 
           {/* Buscador Táctil Móvil */}
-          <div className="px-4 pb-3.5 pt-1">
-            <div className="relative">
+          <div className="px-4 pb-3.5 pt-1 bg-slate-50/70 border-t border-slate-100">
+            <div className="relative mt-2">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
                 value={terminoBusqueda}
                 onChange={(e) => setTerminoBusqueda(e.target.value)}
                 placeholder="Buscar artículo, color, rollo o lote..."
-                className="w-full bg-[#0A1E3C] text-white placeholder-slate-400 rounded-xl pl-9 pr-8 py-2.5 text-xs font-medium border border-blue-900/80 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition"
+                className="w-full bg-white text-slate-900 placeholder-slate-400 rounded-xl pl-9 pr-8 py-2.5 text-xs font-semibold border border-slate-300 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
               />
               {terminoBusqueda && (
                 <button
                   type="button"
                   onClick={() => setTerminoBusqueda('')}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
                 >
                   <XCircle className="w-4 h-4" />
                 </button>
@@ -233,7 +233,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                   className={`px-3 py-1.5 rounded-lg font-bold text-[11px] whitespace-nowrap transition cursor-pointer ${
                     filtroLineaActiva === 'TODAS'
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                   }`}
                 >
                   Todas las Líneas
@@ -248,7 +248,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                       className={`px-3 py-1.5 rounded-lg font-bold text-[11px] whitespace-nowrap transition cursor-pointer ${
                         isActiva
                           ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800'
+                          : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
                       {linea}
@@ -367,10 +367,10 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <div className="flex flex-col items-center shrink-0">
                                   <span
-                                    className={`px-2 py-1 rounded-lg text-xs font-black font-mono border ${
+                                    className={`px-2 py-1 rounded-lg text-xs font-black font-mono border-2 shadow-2xs ${
                                       tieneStock
-                                        ? 'bg-slate-900 text-white border-slate-700'
-                                        : 'bg-slate-200 text-slate-500 border-slate-300'
+                                        ? 'bg-white text-slate-900 border-slate-400'
+                                        : 'bg-slate-100 text-slate-500 border-slate-300'
                                     }`}
                                   >
                                     {v.codigo_color}
@@ -523,14 +523,14 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           VISTA 2: MODO COMPUTADORA / ESCRITORIO (hidden lg:block) — Tabla amplia a 12 columnas
           ============================================================================ */}
       <div className="hidden lg:block space-y-6">
-        {/* Cabecera Amplia de Escritorio (#0F284E) */}
-        <div className="bg-[#0F284E] text-white rounded-3xl p-5 shadow-md border border-blue-900/50 flex items-center justify-between gap-6">
+        {/* Cabecera Amplia de Escritorio Clara y Marcada */}
+        <div className="bg-white text-slate-900 rounded-3xl p-5 shadow-xs border border-slate-200 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-11 h-11 rounded-2xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center font-black text-xl text-blue-200 shadow-inner">
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-xl text-blue-700">
               8t
             </div>
             <div>
-              <span className="text-base font-black tracking-wider text-white uppercase">
+              <span className="text-base font-black tracking-wider text-slate-900 uppercase">
                 Consulta de Stock
               </span>
             </div>
@@ -545,13 +545,13 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                 value={terminoBusqueda}
                 onChange={(e) => setTerminoBusqueda(e.target.value)}
                 placeholder="Buscar por línea, artículo (C-900), cód. color (2003), color, lote o rollo (ROL-...)..."
-                className="w-full bg-[#0A1E3C] text-white placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-medium border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
+                className="w-full bg-white text-slate-900 placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-semibold border border-slate-300 shadow-2xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
               />
               {terminoBusqueda && (
                 <button
                   type="button"
                   onClick={() => setTerminoBusqueda('')}
-                  className="absolute right-3.5 top-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -561,21 +561,21 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
 
           {/* Indicadores Globales en Cabecera + Acceso al Carrito POS si tiene rollos */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="px-4 py-2 rounded-2xl bg-[#0A1E3C] border border-blue-800/70 text-right">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            <div className="px-4 py-2 rounded-2xl bg-slate-50 border border-slate-300 text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                 Variantes / Rollos
               </span>
-              <span className="text-sm font-black text-white font-mono">
+              <span className="text-sm font-black text-slate-900 font-mono">
                 {totalVariantesColor} colores · {totalRollosGlobal} rollos
               </span>
             </div>
-            <div className="px-4 py-2 rounded-2xl bg-blue-600/30 border border-blue-400/40 text-right">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200 block">
+            <div className="px-4 py-2 rounded-2xl bg-blue-50 border border-blue-200 text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
                 Total Disponible
               </span>
-              <span className="text-base font-black text-white font-mono">
+              <span className="text-base font-black text-slate-900 font-mono">
                 {sumaMetrajeTotal.toFixed(2)}{' '}
-                <span className="text-xs font-bold text-blue-300 font-sans">m</span>
+                <span className="text-xs font-bold text-blue-600 font-sans">m</span>
               </span>
             </div>
 
@@ -714,16 +714,16 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                         style={{ backgroundColor: badgeHex }}
                                       />
                                       <span
-                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black font-mono border ${
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black font-mono border-2 shadow-2xs ${
                                           tieneStock
-                                            ? 'bg-slate-900 text-white border-slate-700'
-                                            : 'bg-slate-200 text-slate-500 border-slate-300'
+                                            ? 'bg-white text-slate-900 border-slate-400'
+                                            : 'bg-slate-100 text-slate-500 border-slate-300'
                                         }`}
                                       >
                                         {isColorAbierto ? (
-                                          <ChevronDown className="w-3.5 h-3.5 text-blue-300" />
+                                          <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
                                         ) : (
-                                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                          <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                                         )}
                                         <span>{v.codigo_color}</span>
                                       </span>

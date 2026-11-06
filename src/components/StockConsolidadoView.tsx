@@ -433,7 +433,7 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono text-xs font-bold">
+                                  <span className="px-2 py-0.5 rounded-md bg-white text-slate-900 border-2 border-slate-400 font-mono text-xs font-bold shadow-2xs">
                                     Cód. Color {item.codigo_color}
                                   </span>
                                   <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-xs font-bold">
@@ -580,13 +580,13 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                   <td className="py-3 pl-5 pr-2.5 whitespace-nowrap">
                                     <button
                                       onClick={() => toggleExpand(item.tela_id)}
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs font-bold transition-colors cursor-pointer"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-900 border-2 border-slate-400 font-mono text-xs font-bold shadow-2xs transition-colors cursor-pointer"
                                       title="Ver rollos físicos de este color"
                                     >
                                       {isExpanded ? (
-                                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-blue-300" />
+                                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#1a73e8]" />
                                       ) : (
-                                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-500" />
                                       )}
                                       <span>{item.codigo_color}</span>
                                     </button>
