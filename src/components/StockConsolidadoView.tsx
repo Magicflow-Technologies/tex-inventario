@@ -495,7 +495,7 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                             </div>
 
                             {isExpanded && allRollosFIFO.length > 0 && (
-                              <div className="pt-2 space-y-1.5 border-t border-slate-100">
+                              <div className="pt-2 space-y-1.5 border-t border-slate-100 max-h-96 overflow-y-auto">
                                 {allRollosFIFO.map((rollo, idx) => {
                                   const enCarritoPos = posCartRolloIds.includes(rollo.id);
                                   return (
@@ -703,9 +703,9 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                             No hay rollos físicos disponibles para este color.
                                           </div>
                                         ) : (
-                                          <div className="border border-slate-200 rounded-xl bg-white overflow-x-auto shadow-2xs">
+                                          <div className="border border-slate-200 rounded-xl bg-white overflow-x-auto max-h-96 overflow-y-auto shadow-2xs">
                                             <table className="w-full text-xs">
-                                              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+                                              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold sticky top-0 z-10">
                                                 <tr>
                                                   <th className="py-2.5 px-3 text-left">Orden</th>
                                                   <th className="py-2.5 px-3 text-left">

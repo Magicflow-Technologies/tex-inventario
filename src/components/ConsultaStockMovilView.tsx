@@ -438,7 +438,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
 
                             {/* NIVEL 3: Rollos físicos del Código de Color (con botón + Armar Pedido en cada rollo) */}
                             {isColorAbierto && (
-                              <div className="bg-slate-50/90 border-t border-slate-200/80 p-3 space-y-2">
+                              <div className="bg-slate-50/90 border-t border-slate-200/80 p-3 space-y-2 max-h-96 overflow-y-auto">
                                 {rollosFIFO.length === 0 ? (
                                   <div className="text-center py-3 text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
                                     Sin rollos físicos disponibles para este código de color.
@@ -840,9 +840,9 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                             No hay rollos físicos disponibles actualmente para este código de color.
                                           </div>
                                         ) : (
-                                          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                                          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs max-h-96 overflow-y-auto">
                                             <table className="w-full text-xs">
-                                              <thead className="bg-slate-100/80 text-slate-600 border-b border-slate-200 font-bold uppercase text-[11px]">
+                                              <thead className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-[11px] sticky top-0 z-10">
                                                 <tr>
                                                   <th className="py-2.5 pl-4 pr-3 text-left">#</th>
                                                   <th className="py-2.5 px-3 text-left">
