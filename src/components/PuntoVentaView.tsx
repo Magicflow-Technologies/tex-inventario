@@ -21,6 +21,9 @@ import {
   MessageCircle,
   UserPlus,
   Layers,
+  ChevronRight,
+  MapPin,
+  Tag,
 } from 'lucide-react';
 
 interface PuntoVentaViewProps {
@@ -664,18 +667,13 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     4: '4 Letras (30 / 60 / 90 / 120 días)',
   };
 
-  // Sub-componente reutilizable para renderizar una tarjeta de Variante de Color
-  const renderTarjetaVarianteColor = (
-    col: VarianteColorNodo,
-    idxColor: number,
-    isDesktop: boolean
-  ) => {
+  // Sub-componente reutilizable para renderizar una fila apilada de Variante de Color en móvil
+  const renderTarjetaVarianteColor = (col: VarianteColorNodo) => {
     const totalMetrosColor = col.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
     const rollosCount = col.rollos.length;
     const tieneStock = rollosCount > 0;
-    const defaultOpen = isDesktop ? tieneStock : idxColor === 0 && tieneStock;
-    const abiertoColor =
-      coloresAbiertos[col.tela.id] ?? (Boolean(busquedaTexto.trim()) ? tieneStock : defaultOpen);
+    const defaultOpen = false;
+    const abiertoColor = Boolean(coloresAbiertos[col.tela.id] ?? defaultOpen);
 
     const precioNegociadoActual = getPrecioNegociado(col.tela);
     const precioRebajado = precioNegociadoActual < col.precioLista;
@@ -685,164 +683,158 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     return (
       <div
         key={col.tela.id}
-        className={`rounded-2xl border transition p-3 sm:p-3.5 space-y-2.5 flex flex-col justify-between ${
+        className={`transition ${
           marcadosColor > 0
-            ? 'bg-blue-50/40 border-blue-300 ring-2 ring-blue-500/10'
-            : 'bg-white border-slate-200/80 shadow-2xs'
+            ? 'bg-blue-50/30'
+            : tieneStock
+            ? 'bg-white'
+            : 'bg-slate-50/40 opacity-65'
         }`}
       >
-        <div className="space-y-2.5">
-          {/* Fila Principal del Color (Tocable para ver Rollos) */}
-          <div
-            onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
-            className={`cursor-pointer flex items-center justify-between gap-2.5 ${
-              tieneStock ? '' : 'opacity-60'
-            }`}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex flex-col items-center shrink-0">
-                <span
-                  className={`px-2.5 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center border-2 shadow-2xs ${
-                    tieneStock
-                      ? 'bg-white text-slate-900 border-slate-400'
-                      : 'bg-slate-100 text-slate-500 border-slate-300'
-                  }`}
-                >
-                  {col.codigoColor}
-                </span>
-                <span
-                  className="w-4 h-1.5 rounded-full mt-1"
-                  style={{ backgroundColor: col.badgeColor }}
-                />
-              </div>
-
-              <div className="min-w-0">
-                <h4 className="text-xs font-black text-slate-800 truncate">
-                  {col.nombreComercial}
-                </h4>
-                <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="text-right">
-                <div
-                  className={`text-xs font-black font-mono ${
-                    tieneStock ? 'text-slate-900' : 'text-slate-400'
-                  }`}
-                >
-                  {totalMetrosColor.toFixed(2)}{' '}
-                  <span className="text-[10px] text-blue-600 font-bold font-sans">m</span>
-                </div>
-                <div
-                  className={`text-[10px] font-bold ${
-                    tieneStock ? 'text-emerald-700' : 'text-slate-400'
-                  }`}
-                >
-                  {tieneStock
-                    ? `${rollosCount} ${rollosCount === 1 ? 'rollo' : 'rollos'}`
-                    : 'Agotado'}
-                </div>
-              </div>
-              <div
-                className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 text-xs transition-transform ${
-                  abiertoColor ? 'rotate-180' : ''
+        {/* Fila Principal del Código de Color (Tocable para desplegar sus rollos) */}
+        <div
+          onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
+          className="p-3 cursor-pointer flex items-center justify-between gap-2.5 hover:bg-blue-50/30 transition"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex flex-col items-center shrink-0">
+              <span
+                className={`px-2 py-1 rounded-lg font-mono text-xs font-black flex items-center justify-center border-2 shadow-2xs ${
+                  tieneStock
+                    ? 'bg-white text-slate-900 border-slate-400'
+                    : 'bg-slate-100 text-slate-500 border-slate-300'
                 }`}
               >
-                <ChevronDown className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          {/* P. METRO INDIVIDUAL PARA ESTE COLOR */}
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-                Precio / Metro Individual:
+                {col.codigoColor}
               </span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono text-slate-500 font-semibold">
-                  Lista: S/ {col.precioLista.toFixed(2)}
+              <span
+                className="w-4 h-1.5 rounded-full mt-1"
+                style={{ backgroundColor: col.badgeColor }}
+              />
+            </div>
+
+            <div className="min-w-0">
+              <h4 className="text-xs font-black text-slate-800 truncate">
+                {col.nombreComercial}
+              </h4>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Lista: S/ {col.precioLista.toFixed(2)}/m
                 </span>
-                {precioRebajado && (
-                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                    Rebaja
+              </div>
+              <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+                <Layers className="w-3 h-3 text-slate-400 shrink-0" />
+                <span>
+                  {rollosCount} {rollosCount === 1 ? 'rollo disponible' : 'rollos disponibles'}
+                </span>
+                {marcadosColor > 0 && (
+                  <span className="ml-1 text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                    {marcadosColor} en pedido
                   </span>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-1">
-              <span className="font-black text-slate-700">S/</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Precio / Metro Editable en línea */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200"
+            >
+              <span className="text-[10px] font-black text-slate-600">S/</span>
               <input
                 type="number"
                 step="0.10"
                 min="0.10"
                 value={precioNegociadoActual}
                 onChange={(e) => actualizarPrecioColor(col.tela, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className={`w-20 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
+                className={`w-14 text-right font-black text-xs bg-white border rounded-lg py-0.5 px-1 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${
                   precioRebajado
                     ? 'border-amber-400 text-amber-900'
-                    : 'border-blue-400 text-slate-900'
+                    : 'border-slate-300 text-slate-900'
                 }`}
               />
-              <span className="text-[10px] text-slate-400 font-bold">/m</span>
+            </div>
+
+            <div className="text-right">
+              <div
+                className={`text-sm font-black font-mono ${
+                  tieneStock ? 'text-slate-900' : 'text-slate-400'
+                }`}
+              >
+                {totalMetrosColor.toFixed(2)}
+                <span className="text-[10px] text-blue-600 font-bold font-sans ml-0.5">m</span>
+              </div>
+              <span
+                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  tieneStock
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-slate-100 text-slate-400 border border-slate-200'
+                }`}
+              >
+                {tieneStock ? 'Ver rollos' : 'Sin Stock'}
+              </span>
+            </div>
+            <div
+              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-transform ${
+                abiertoColor
+                  ? 'rotate-180 bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
             </div>
           </div>
+        </div>
 
-          {/* Desglose de Rollos Físicos con Botón '+ Marcar' / '✓ Marcado' */}
-          {abiertoColor && (
-            <div className="space-y-1.5 pt-1">
-              {tieneStock ? (
-                col.rollos.map((rollo, idx) => {
-                  const seleccionado = rollosSeleccionadosIds.includes(rollo.id);
-                  return (
-                    <div
-                      key={rollo.id}
-                      onClick={() => toggleRolloCalle(rollo)}
-                      className={`p-2.5 rounded-xl flex items-center justify-between gap-2.5 border transition active:scale-98 cursor-pointer ${
-                        seleccionado
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-blue-50/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span
-                          className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                            seleccionado
-                              ? 'bg-white/20 text-white'
-                              : 'bg-white text-slate-600 border border-slate-200'
-                          }`}
-                        >
-                          {idx + 1}
+        {/* NIVEL 3: Desglose de Rollos Físicos al hacer clic en el Código de Color */}
+        {abiertoColor && (
+          <div className="bg-slate-50/90 border-t border-slate-200/80 p-3 space-y-2 max-h-96 overflow-y-auto">
+            {tieneStock ? (
+              col.rollos.map((rollo, idx) => {
+                const seleccionado = rollosSeleccionadosIds.includes(rollo.id);
+                return (
+                  <div
+                    key={rollo.id}
+                    onClick={() => toggleRolloCalle(rollo)}
+                    className={`p-2.5 rounded-xl flex items-center justify-between gap-2.5 border transition active:scale-98 cursor-pointer shadow-2xs ${
+                      seleccionado
+                        ? 'bg-blue-50 border-blue-400 text-slate-900'
+                        : 'bg-white border-slate-200 text-slate-800 hover:bg-blue-50/40'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                          #{idx + 1}
                         </span>
-                        <div className="min-w-0">
-                          <div
-                            className={`font-mono text-[10px] font-bold flex items-center gap-1.5 flex-wrap ${
-                              seleccionado ? 'text-blue-100' : 'text-slate-500'
-                            }`}
-                          >
-                            <span>{rollo.codigo_rollo}</span>
-                            {rollo.ubicacion && <span>· {rollo.ubicacion}</span>}
-                            {rollo.lote && <span>· {rollo.lote}</span>}
-                          </div>
-                          <div
-                            className={`text-xs font-black font-mono ${
-                              seleccionado ? 'text-white' : 'text-slate-900'
-                            }`}
-                          >
-                            {rollo.metraje.toFixed(2)} metros
-                          </div>
-                        </div>
+                        <span className="font-mono font-bold text-slate-900 text-xs">
+                          {rollo.codigo_rollo}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-semibold text-slate-700">
+                          Lote: {rollo.lote || 'S/L'}
+                        </span>
+                        <span>·</span>
+                        <span>{rollo.ubicacion || 'Almacén Central'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right font-mono font-black text-sm text-slate-900">
+                        {rollo.metraje.toFixed(2)}{' '}
+                        <span className="text-[10px] text-blue-600 font-sans">m</span>
                       </div>
 
                       <button
                         type="button"
-                        className={`h-8 px-3 rounded-lg text-xs font-black flex items-center gap-1 transition shrink-0 cursor-pointer ${
+                        className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-xs transition shrink-0 cursor-pointer ${
                           seleccionado
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-white text-blue-700 border border-blue-300'
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
                         }`}
                       >
                         {seleccionado ? (
@@ -853,21 +845,21 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                         ) : (
                           <>
                             <Plus className="w-3.5 h-3.5" />
-                            <span>Marcar</span>
+                            <span>+ Marcar</span>
                           </>
                         )}
                       </button>
                     </div>
-                  );
-                })
-              ) : (
-                <p className="text-xs text-slate-400 italic text-center py-1">
-                  Sin rollos físicos en almacén.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-3 text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+                Sin rollos físicos disponibles para este código de color.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -1108,13 +1100,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           ) : (
             catalogoFiltrado.map((grupoLinea) => (
               <section key={grupoLinea.linea} className="space-y-3">
-                <div className="flex items-center gap-2 px-1 pt-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                  <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
-                    {grupoLinea.linea}
-                  </h2>
-                </div>
-
                 {grupoLinea.articulos.map((art) => {
                   const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
                   let metrosTotalesArt = 0;
@@ -1131,7 +1116,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                     >
                       <div
                         onClick={() => toggleArticulo(art.codigoArticulo)}
-                        className="p-3.5 bg-slate-50/80 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-100"
+                        className="p-3.5 bg-slate-50/90 hover:bg-blue-50/40 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-200/80"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className="px-2.5 h-8 rounded-xl bg-blue-100 text-blue-800 font-mono text-xs font-black flex items-center justify-center shrink-0 border border-blue-200">
@@ -1139,11 +1124,10 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                           </span>
                           <div className="min-w-0">
                             <h3 className="text-xs font-black text-slate-900 truncate leading-snug">
-                              {art.nombreBase}
+                              Línea {grupoLinea.linea} ({art.codigoArticulo})
                             </h3>
-                            <p className="text-[10px] text-slate-400 font-bold">
-                              {art.colores.length}{' '}
-                              {art.colores.length === 1 ? 'color disponible' : 'colores disponibles'}
+                            <p className="text-[11px] text-slate-600 font-semibold truncate">
+                              {art.nombreBase}
                             </p>
                           </div>
                         </div>
@@ -1169,10 +1153,8 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                       </div>
 
                       {abiertoArt && (
-                        <div className="divide-y divide-slate-100 p-2 space-y-2">
-                          {art.colores.map((col, idxColor) =>
-                            renderTarjetaVarianteColor(col, idxColor, false)
-                          )}
+                        <div className="divide-y divide-slate-100">
+                          {art.colores.map((col) => renderTarjetaVarianteColor(col))}
                         </div>
                       )}
                     </article>
@@ -1328,21 +1310,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               </div>
             ) : (
               catalogoFiltrado.map((grupoLinea) => (
-                <section key={grupoLinea.linea} className="space-y-3">
-                  {/* Encabezado de Línea Único */}
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-600" />
-                      <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">
-                        Línea: {grupoLinea.linea}
-                      </h2>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">
-                      {grupoLinea.articulos.length}{' '}
-                      {grupoLinea.articulos.length === 1 ? 'artículo agrupado' : 'artículos agrupados'}
-                    </span>
-                  </div>
-
+                <section key={grupoLinea.linea} className="space-y-4">
                   {grupoLinea.articulos.map((art) => {
                     const abiertoArt = articulosAbiertos[art.codigoArticulo] ?? true;
                     let metrosTotalesArt = 0;
@@ -1351,28 +1319,39 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                       metrosTotalesArt += c.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
                       rollosTotalesArt += c.rollos.length;
                     });
+                    const anchoEjemplo =
+                      art.colores[0]?.tela?.ancho
+                        ? `${Number(art.colores[0].tela.ancho).toFixed(2)} m`
+                        : '1.60 m';
 
                     return (
                       <article
                         key={`${grupoLinea.linea}_${art.codigoArticulo}`}
                         className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden transition"
                       >
-                        {/* Cabecera del Artículo */}
+                        {/* NIVEL 1: Cabecera del Artículo agrupado por Línea y Código de Artículo */}
                         <div
                           onClick={() => toggleArticulo(art.codigoArticulo)}
-                          className="px-5 py-4 bg-slate-50/90 hover:bg-slate-100 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80"
+                          className="px-5 py-4 bg-slate-50/90 hover:bg-blue-50/40 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80 transition"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="px-3.5 h-10 rounded-2xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <span className="px-3.5 h-10 rounded-xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200 shadow-2xs">
                               {art.codigoArticulo}
                             </span>
                             <div className="min-w-0">
-                              <h3 className="text-base font-black text-slate-900 truncate">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base font-black text-slate-900">
+                                  Línea {grupoLinea.linea} ({art.codigoArticulo})
+                                </h3>
+                                <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                                  {art.colores.length} códigos de color
+                                </span>
+                                <span className="text-xs text-slate-500 font-semibold">
+                                  · Ancho: <strong className="text-slate-700">{anchoEjemplo}</strong>
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
                                 {art.nombreBase}
-                              </h3>
-                              <p className="text-xs text-slate-500 font-semibold">
-                                {art.colores.length} variantes de color en catálogo · Línea{' '}
-                                {grupoLinea.linea}
                               </p>
                             </div>
                           </div>
@@ -1386,26 +1365,352 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                               <div className="text-xs font-bold text-slate-500 flex items-center justify-end gap-1">
                                 <Layers className="w-3.5 h-3.5 text-blue-600" />
                                 <span>
-                                  {rollosTotalesArt} {rollosTotalesArt === 1 ? 'rollo disponible' : 'rollos disponibles'}
+                                  {rollosTotalesArt}{' '}
+                                  {rollosTotalesArt === 1
+                                    ? 'rollo disponible'
+                                    : 'rollos disponibles'}
                                 </span>
                               </div>
                             </div>
                             <div
-                              className={`w-8 h-8 rounded-xl bg-slate-200/70 flex items-center justify-center text-slate-600 transition-transform ${
-                                abiertoArt ? 'rotate-180 bg-blue-50 text-blue-700' : ''
+                              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
+                                abiertoArt
+                                  ? 'bg-blue-600 text-white shadow-2xs'
+                                  : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/70'
                               }`}
                             >
-                              <ChevronDown className="w-4 h-4" />
+                              <span>{abiertoArt ? 'Ocultar Colores' : 'Ver Colores'}</span>
+                              <ChevronDown
+                                className={`w-4 h-4 transition-transform ${
+                                  abiertoArt ? 'rotate-180' : ''
+                                }`}
+                              />
                             </div>
                           </div>
                         </div>
 
-                        {/* Grilla de 2 Columnas de Variantes de Color en Escritorio */}
+                        {/* NIVEL 2: Tabla Apilada de Códigos de Color (misma lógica que Sección Stock) */}
                         {abiertoArt && (
-                          <div className="p-4 grid grid-cols-2 gap-3.5 bg-slate-50/40">
-                            {art.colores.map((col, idxColor) =>
-                              renderTarjetaVarianteColor(col, idxColor, true)
-                            )}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50/60 border-b border-slate-200/80 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                                  <th className="py-3 pl-5 pr-3">Cód. Color</th>
+                                  <th className="py-3 px-3">Artículo / Tela</th>
+                                  <th className="py-3 px-3">Variante de Color</th>
+                                  <th className="py-3 px-3 text-right">Precio / Metro</th>
+                                  <th className="py-3 px-3 text-right">Rollos Disp.</th>
+                                  <th className="py-3 px-3 text-right">Stock Disp.</th>
+                                  <th className="py-3 pl-3 pr-5 text-right">Rollos del Color</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 text-xs">
+                                {art.colores.map((col) => {
+                                  const totalMetrosColor = col.rollos.reduce(
+                                    (acc, r) => acc + Number(r.metraje),
+                                    0
+                                  );
+                                  const rollosCount = col.rollos.length;
+                                  const tieneStock = rollosCount > 0;
+                                  const defaultOpen = false;
+                                  const abiertoColor = Boolean(
+                                    coloresAbiertos[col.tela.id] ?? defaultOpen
+                                  );
+                                  const precioNegociadoActual = getPrecioNegociado(col.tela);
+                                  const precioRebajado = precioNegociadoActual < col.precioLista;
+                                  const marcadosColor = col.rollos.filter((r) =>
+                                    rollosSeleccionadosIds.includes(r.id)
+                                  ).length;
+
+                                  return (
+                                    <React.Fragment key={col.tela.id}>
+                                      {/* Fila Apilada del Código de Color */}
+                                      <tr
+                                        onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
+                                        className={`cursor-pointer transition ${
+                                          abiertoColor
+                                            ? 'bg-blue-50/40'
+                                            : marcadosColor > 0
+                                            ? 'bg-blue-50/20 hover:bg-blue-50/40'
+                                            : tieneStock
+                                            ? 'hover:bg-blue-50/30 bg-white'
+                                            : 'bg-slate-50/40 opacity-65'
+                                        }`}
+                                      >
+                                        {/* Cód. Color */}
+                                        <td className="py-3.5 pl-5 pr-3 whitespace-nowrap">
+                                          <div className="inline-flex items-center gap-2">
+                                            <span
+                                              className="w-3 h-6 rounded-full shrink-0 border border-black/10"
+                                              style={{ backgroundColor: col.badgeColor }}
+                                            />
+                                            <span
+                                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black font-mono border-2 shadow-2xs ${
+                                                tieneStock
+                                                  ? 'bg-white text-slate-900 border-slate-400'
+                                                  : 'bg-slate-100 text-slate-500 border-slate-300'
+                                              }`}
+                                            >
+                                              {abiertoColor ? (
+                                                <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                                              ) : (
+                                                <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                                              )}
+                                              <span>{col.codigoColor}</span>
+                                            </span>
+                                          </div>
+                                        </td>
+
+                                        {/* Artículo / Tela */}
+                                        <td className="py-3.5 px-3">
+                                          <div className="font-bold text-slate-900 text-xs">
+                                            {col.nombreComercial}
+                                          </div>
+                                          <div className="text-[11px] text-slate-400 font-mono">
+                                            {col.tela.codigo} · Ancho{' '}
+                                            {Number(col.tela.ancho || 1.6).toFixed(2)}m
+                                          </div>
+                                        </td>
+
+                                        {/* Variante de Color */}
+                                        <td className="py-3.5 px-3">
+                                          <div className="font-extrabold text-blue-700 text-xs">
+                                            {col.nombreColor}
+                                          </div>
+                                          {marcadosColor > 0 && (
+                                            <span className="inline-block mt-0.5 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                              {marcadosColor}{' '}
+                                              {marcadosColor === 1
+                                                ? 'rollo en pedido'
+                                                : 'rollos en pedido'}
+                                            </span>
+                                          )}
+                                        </td>
+
+                                        {/* Precio / Metro (Lista + Editable) */}
+                                        <td
+                                          className="py-3.5 px-3 text-right whitespace-nowrap"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <div className="inline-flex flex-col items-end gap-1">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[11px] font-black text-slate-700">
+                                                S/
+                                              </span>
+                                              <input
+                                                type="number"
+                                                step="0.10"
+                                                min="0.10"
+                                                value={precioNegociadoActual}
+                                                onChange={(e) =>
+                                                  actualizarPrecioColor(col.tela, e.target.value)
+                                                }
+                                                className={`w-18 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
+                                                  precioRebajado
+                                                    ? 'border-amber-400 text-amber-900'
+                                                    : 'border-slate-300 text-slate-900'
+                                                }`}
+                                              />
+                                              <span className="text-[10px] text-slate-400 font-bold">
+                                                /m
+                                              </span>
+                                            </div>
+                                            <span className="text-[10px] font-mono text-slate-400 font-semibold">
+                                              Lista: S/ {col.precioLista.toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </td>
+
+                                        {/* Rollos Disponibles */}
+                                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                                          <span
+                                            className={`text-xs font-bold px-2.5 py-1 rounded-full inline-block font-mono ${
+                                              tieneStock
+                                                ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                                                : 'text-slate-400 bg-slate-100'
+                                            }`}
+                                          >
+                                            {rollosCount} {rollosCount === 1 ? 'rollo' : 'rollos'}
+                                          </span>
+                                        </td>
+
+                                        {/* Stock Disponible */}
+                                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                                          <div
+                                            className={`text-sm font-black font-mono ${
+                                              tieneStock ? 'text-slate-900' : 'text-slate-400'
+                                            }`}
+                                          >
+                                            {totalMetrosColor.toFixed(2)}{' '}
+                                            <span className="text-[10px] font-bold font-sans text-blue-600">
+                                              m
+                                            </span>
+                                          </div>
+                                        </td>
+
+                                        {/* Botón Desplegar Rollos del Color */}
+                                        <td className="py-3.5 pl-3 pr-5 text-right whitespace-nowrap">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleColorDesglose(col.tela.id, defaultOpen);
+                                            }}
+                                            className={`px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                                              abiertoColor
+                                                ? 'bg-blue-600 text-white shadow-2xs'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                            }`}
+                                          >
+                                            <span>
+                                              {abiertoColor
+                                                ? 'Ocultar Rollos'
+                                                : `Ver Rollos (${rollosCount})`}
+                                            </span>
+                                            <ChevronDown
+                                              className={`w-3.5 h-3.5 transition-transform ${
+                                                abiertoColor ? 'rotate-180' : ''
+                                              }`}
+                                            />
+                                          </button>
+                                        </td>
+                                      </tr>
+
+                                      {/* NIVEL 3: Despliegue de Rollos Físicos del Código de Color */}
+                                      {abiertoColor && (
+                                        <tr>
+                                          <td
+                                            colSpan={7}
+                                            className="bg-slate-50/80 p-0 border-y border-slate-200/90"
+                                          >
+                                            <div className="px-6 py-4 space-y-3">
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                                                  <Layers className="w-4 h-4 text-blue-600" />
+                                                  <span>
+                                                    Rollos de Cód. Color {col.codigoColor} —{' '}
+                                                    {col.nombreColor} ({rollosCount}{' '}
+                                                    {rollosCount === 1
+                                                      ? 'rollo disponible'
+                                                      : 'rollos disponibles'}
+                                                    )
+                                                  </span>
+                                                </div>
+                                              </div>
+
+                                              {rollosCount === 0 ? (
+                                                <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
+                                                  No hay rollos físicos disponibles actualmente para este código de color.
+                                                </div>
+                                              ) : (
+                                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs max-h-96 overflow-y-auto">
+                                                  <table className="w-full text-xs">
+                                                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-[11px] sticky top-0 z-10">
+                                                      <tr>
+                                                        <th className="py-2.5 pl-4 pr-3 text-left">
+                                                          #
+                                                        </th>
+                                                        <th className="py-2.5 px-3 text-left">
+                                                          Código de Rollo
+                                                        </th>
+                                                        <th className="py-2.5 px-3 text-right">
+                                                          Metraje Registrado
+                                                        </th>
+                                                        <th className="py-2.5 px-3 text-left">
+                                                          Ubicación en Almacén
+                                                        </th>
+                                                        <th className="py-2.5 px-3 text-left">
+                                                          Lote / DUA
+                                                        </th>
+                                                        <th className="py-2.5 pl-3 pr-4 text-right">
+                                                          Acción (Pedido)
+                                                        </th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                      {col.rollos.map((rollo, idx) => {
+                                                        const seleccionado =
+                                                          rollosSeleccionadosIds.includes(rollo.id);
+
+                                                        return (
+                                                          <tr
+                                                            key={rollo.id}
+                                                            onClick={() => toggleRolloCalle(rollo)}
+                                                            className={`cursor-pointer transition ${
+                                                              seleccionado
+                                                                ? 'bg-blue-50/60 hover:bg-blue-50'
+                                                                : 'hover:bg-blue-50/30'
+                                                            }`}
+                                                          >
+                                                            <td className="py-2.5 pl-4 pr-3 font-mono font-bold text-blue-600">
+                                                              #{idx + 1}
+                                                            </td>
+                                                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
+                                                              {rollo.codigo_rollo}
+                                                            </td>
+                                                            <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 text-sm">
+                                                              {rollo.metraje.toFixed(2)}{' '}
+                                                              <span className="text-[10px] font-bold text-blue-600 font-sans">
+                                                                m
+                                                              </span>
+                                                            </td>
+                                                            <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                                              <span className="inline-flex items-center gap-1">
+                                                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>
+                                                                  {rollo.ubicacion ||
+                                                                    'Almacén Central'}
+                                                                </span>
+                                                              </span>
+                                                            </td>
+                                                            <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
+                                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                                                                <Tag className="w-3 h-3 text-slate-500" />
+                                                                <span>{rollo.lote || 'S/L'}</span>
+                                                              </span>
+                                                            </td>
+                                                            <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
+                                                              <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  toggleRolloCalle(rollo);
+                                                                }}
+                                                                className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer ${
+                                                                  seleccionado
+                                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
+                                                                }`}
+                                                              >
+                                                                {seleccionado ? (
+                                                                  <>
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                    <span>Marcado</span>
+                                                                  </>
+                                                                ) : (
+                                                                  <>
+                                                                    <Plus className="w-3.5 h-3.5" />
+                                                                    <span>+ Marcar</span>
+                                                                  </>
+                                                                )}
+                                                              </button>
+                                                            </td>
+                                                          </tr>
+                                                        );
+                                                      })}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </article>
