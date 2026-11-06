@@ -78,7 +78,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
 }) => {
   const [filtroLineaActiva, setFiltroLineaActiva] = useState<string>('TODAS');
   const [terminoBusqueda, setTerminoBusqueda] = useState<string>('');
-  const [articulosCerrados, setArticulosCerrados] = useState<Record<string, boolean>>({});
+  // Por defecto cerrado: al hacer clic en "Línea ... (Código)" se despliegan los códigos de colores
+  const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});
 
   // Estado del modal "+ Armar Pedido"
   const [varianteSeleccionada, setVarianteSeleccionada] = useState<StockConsolidadoTela | null>(
@@ -190,11 +191,11 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
       }
     });
 
-    // Ordenar variantes poniendo primero las que tienen stock disponible
+    // Ordenar variantes por Código de Color numérico/alfanumérico (2001, 2002, 2003...)
     return Array.from(mapGrupos.values()).map((g) => ({
       ...g,
-      variantes: [...g.variantes].sort(
-        (a, b) => b.total_metros_disponibles - a.total_metros_disponibles
+      variantes: [...g.variantes].sort((a, b) =>
+        (a.codigo_color || '').localeCompare(b.codigo_color || '', undefined, { numeric: true })
       ),
     }));
   }, [stockList, filtroLineaActiva, terminoBusqueda]);
@@ -206,7 +207,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   const sumaMetrajeTotal = gruposFiltrados.reduce((acc, g) => acc + g.totalMetros, 0);
 
   const toggleArticulo = (groupKey: string) => {
-    setArticulosCerrados((prev) => ({
+    setArticulosAbiertos((prev) => ({
       ...prev,
       [groupKey]: !prev[groupKey],
     }));
@@ -503,7 +504,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             </div>
           ) : (
             gruposFiltrados.map((grupo) => {
-              const estaAbierto = !articulosCerrados[grupo.groupKey];
+              const estaAbierto =
+                Boolean(terminoBusqueda.trim()) || Boolean(articulosAbiertos[grupo.groupKey]);
 
               return (
                 <div
@@ -519,15 +521,17 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                         {grupo.codigoArticulo}
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            {grupo.linea}
-                          </span>
-                          <span className="text-[10px] text-slate-400">· Ancho: {grupo.ancho}</span>
-                        </div>
-                        <h2 className="text-xs font-bold text-slate-900 leading-tight truncate">
-                          {grupo.nombreBase}
+                        <h2 className="text-xs sm:text-sm font-black text-slate-900 leading-tight truncate">
+                          Línea {grupo.linea} ({grupo.codigoArticulo})
                         </h2>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-[11px] font-semibold text-slate-600 truncate">
+                            {grupo.nombreBase}
+                          </span>
+                          <span className="text-[10px] text-blue-600 font-bold">
+                            · {grupo.variantes.length} colores
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -547,7 +551,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
 
                       <div
                         className={`w-6 h-6 rounded-lg bg-slate-200/60 flex items-center justify-center text-slate-600 text-xs transition-transform ${
-                          estaAbierto ? 'rotate-180' : ''
+                          estaAbierto ? 'rotate-180 bg-blue-100 text-blue-700' : ''
                         }`}
                       >
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -771,37 +775,41 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
               </div>
             ) : (
               gruposFiltrados.map((grupo) => {
-                const estaAbierto = !articulosCerrados[grupo.groupKey];
+                const estaAbierto =
+                  Boolean(terminoBusqueda.trim()) || Boolean(articulosAbiertos[grupo.groupKey]);
 
                 return (
                   <div
                     key={grupo.groupKey}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden"
                   >
-                    {/* Cabecera Amplia del Artículo */}
+                    {/* Cabecera Amplia del Artículo: Línea + (Código de Artículo) */}
                     <div
                       onClick={() => toggleArticulo(grupo.groupKey)}
-                      className="px-6 py-4 bg-slate-50/90 hover:bg-slate-100/80 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80 transition"
+                      className="px-6 py-4 bg-slate-50/90 hover:bg-blue-50/40 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80 transition"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <span className="px-3.5 h-10 rounded-xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200 shadow-2xs">
                           {grupo.codigoArticulo}
                         </span>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 uppercase tracking-wider">
-                              {grupo.linea}
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h2 className="text-base font-black text-slate-900">
+                              Línea {grupo.linea} ({grupo.codigoArticulo})
+                            </h2>
+                            <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                              {grupo.variantes.length} códigos de color
                             </span>
                             <span className="text-xs text-slate-500 font-semibold">
                               · Ancho: <strong className="text-slate-700">{grupo.ancho}</strong>
                             </span>
-                            <span className="text-xs text-slate-500 font-semibold">
-                              · <strong className="text-slate-700">{grupo.variantes.length}</strong> variantes de color
-                            </span>
                           </div>
-                          <h2 className="text-base font-black text-slate-900 mt-0.5 truncate">
-                            {grupo.nombreBase}
-                          </h2>
+                          <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
+                            {grupo.nombreBase}{' '}
+                            <span className="text-blue-600 font-normal ml-1">
+                              ({estaAbierto ? 'Clic para ocultar colores' : 'Clic para desplegar códigos de colores'})
+                            </span>
+                          </p>
                         </div>
                       </div>
 
@@ -820,11 +828,18 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                         </div>
 
                         <div
-                          className={`w-8 h-8 rounded-xl bg-slate-200/70 flex items-center justify-center text-slate-700 transition-transform ${
-                            estaAbierto ? 'rotate-180 bg-blue-50 text-blue-700' : ''
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
+                            estaAbierto
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/70'
                           }`}
                         >
-                          <ChevronDown className="w-4 h-4" />
+                          <span>{estaAbierto ? 'Ocultar Colores' : 'Ver Colores'}</span>
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${
+                              estaAbierto ? 'rotate-180' : ''
+                            }`}
+                          />
                         </div>
                       </div>
                     </div>
