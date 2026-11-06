@@ -29,6 +29,8 @@ interface PuntoVentaViewProps {
   initialTelaId?: string;
   initialClienteId?: string;
   defaultRegistradoPor?: string;
+  selectedRolloIds?: string[];
+  onChangeSelectedRolloIds?: React.Dispatch<React.SetStateAction<string[]>>;
   onPedidoCreado: (pedido: PedidoCompleto) => void;
   onIrAPedidosPendientes: () => void;
   onIrAClientes?: () => void;
@@ -102,6 +104,8 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   initialTelaId,
   initialClienteId,
   defaultRegistradoPor,
+  selectedRolloIds,
+  onChangeSelectedRolloIds,
   onPedidoCreado,
   onIrAPedidosPendientes,
   onIrAClientes,
@@ -133,8 +137,10 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   // Precios negociados individuales por variante de tela (tela.id -> precio)
   const [preciosNegociados, setPreciosNegociados] = useState<Record<string, number>>({});
 
-  // Rollos seleccionados en el pedido
-  const [rollosSeleccionadosIds, setRollosSeleccionadosIds] = useState<string[]>([]);
+  // Rollos seleccionados en el pedido (compartido con Stock si se pasa por props)
+  const [internalRollosIds, setInternalRollosIds] = useState<string[]>([]);
+  const rollosSeleccionadosIds = selectedRolloIds ?? internalRollosIds;
+  const setRollosSeleccionadosIds = onChangeSelectedRolloIds ?? setInternalRollosIds;
 
   // Acordeones de artículos y colores
   const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});

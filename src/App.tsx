@@ -47,6 +47,8 @@ export default function App() {
   const [initialTelaIdSalida, setInitialTelaIdSalida] = useState<string | undefined>();
   const [initialTelaIdPos, setInitialTelaIdPos] = useState<string | undefined>();
   const [initialClienteIdPos, setInitialClienteIdPos] = useState<string | undefined>();
+  // Carrito único de rollos para el Punto de Venta (POS) compartido con Stock
+  const [posCartRolloIds, setPosCartRolloIds] = useState<string[]>([]);
 
   const [trazabilidadCodigo, setTrazabilidadCodigo] = useState<string>('ROL-2026-00001');
   const [rolloParaEtiqueta, setRolloParaEtiqueta] = useState<RolloConTela | null>(null);
@@ -93,6 +95,16 @@ export default function App() {
   const handleArmarPedidoConTela = (telaId: string) => {
     setInitialTelaIdPos(telaId);
     setActiveTab('pos');
+  };
+
+  const handleAgregarRolloAPos = (rollo: RolloConTela) => {
+    setPosCartRolloIds((prev) => (prev.includes(rollo.id) ? prev : [...prev, rollo.id]));
+    setInitialTelaIdPos(rollo.tela_id);
+    setActiveTab('pos');
+    showToast(
+      `Rollo ${rollo.codigo_rollo} cargado en el POS`,
+      `Se agregó ${rollo.tela_nombre} (Cód. ${rollo.tela_codigo_color} - ${rollo.tela_color}, ${rollo.metraje.toFixed(2)} m) al carrito del POS.`
+    );
   };
 
   const handleVerTrazabilidad = (codigoRollo: string) => {
@@ -153,9 +165,11 @@ export default function App() {
         {activeTab === 'stock' && (
           <StockConsolidadoView
             stockList={stockList}
+            posCartRolloIds={posCartRolloIds}
             onOpenIngresoConTela={handleOpenIngresoConTela}
             onOpenSalidaConTela={handleOpenSalidaConTela}
             onArmarPedidoConTela={handleArmarPedidoConTela}
+            onAgregarRolloAPos={handleAgregarRolloAPos}
             onVerTrazabilidadRollo={handleVerTrazabilidad}
             onVerEtiqueta={handleVerEtiqueta}
           />
@@ -164,15 +178,9 @@ export default function App() {
         {activeTab === 'consulta_stock' && (
           <ConsultaStockMovilView
             stockList={stockList}
-            clientes={clientes}
-            defaultRegistradoPor={defaultResponsable}
-            onPedidoCreado={(pedido) => {
-              showToast(
-                `Orden ${pedido.codigo_pedido} Creada en Supabase`,
-                `Se reservaron ${pedido.total_rollos} rollos físicos para ${pedido.cliente_nombre}.`
-              );
-            }}
-            onIrAPedidosPendientes={() => setActiveTab('pedidos')}
+            posCartRolloIds={posCartRolloIds}
+            onAgregarRolloAPos={handleAgregarRolloAPos}
+            onIrAPos={() => setActiveTab('pos')}
           />
         )}
 
@@ -183,9 +191,11 @@ export default function App() {
             initialTelaId={initialTelaIdPos}
             initialClienteId={initialClienteIdPos}
             defaultRegistradoPor={defaultResponsable}
+            selectedRolloIds={posCartRolloIds}
+            onChangeSelectedRolloIds={setPosCartRolloIds}
             onPedidoCreado={(pedido) => {
               showToast(
-                `Orden ${pedido.codigo_pedido} Creada en Supabase`,
+                `Orden ${pedido.codigo_pedido} Creada`,
                 `Se reservaron ${pedido.total_rollos} rollos físicos para ${pedido.cliente_nombre}.`
               );
             }}

@@ -1,29 +1,24 @@
 import React, { useState, useMemo } from 'react';
-import { StockConsolidadoTela, PedidoCompleto, Cliente } from '../types/inventory';
+import { StockConsolidadoTela, RolloConTela } from '../types/inventory';
 import { inventoryStore, normalizeLinea, normalizeSpaces } from '../services/inventoryStore';
 import {
   Search,
   XCircle,
-  ShoppingBag,
   ChevronDown,
+  ChevronRight,
   Layers,
-  Ruler,
-  Plus,
-  X,
-  CheckCircle2,
-  Trash2,
-  ArrowRight,
+  ShoppingCart,
   Package,
-  User,
+  MapPin,
   Tag,
+  Check,
 } from 'lucide-react';
 
 interface ConsultaStockMovilViewProps {
   stockList: StockConsolidadoTela[];
-  clientes?: Cliente[];
-  defaultRegistradoPor?: string;
-  onPedidoCreado?: (pedido: PedidoCompleto) => void;
-  onIrAPedidosPendientes?: () => void;
+  posCartRolloIds?: string[];
+  onAgregarRolloAPos?: (rollo: RolloConTela) => void;
+  onIrAPos?: () => void;
 }
 
 interface GrupoArticulo {
@@ -35,16 +30,6 @@ interface GrupoArticulo {
   variantes: StockConsolidadoTela[];
   totalMetros: number;
   totalRollos: number;
-}
-
-interface ItemPedidoPreliminar {
-  id: string;
-  tela: StockConsolidadoTela;
-  modo: 'ROLLOS' | 'METROS';
-  cantidadRollos: number;
-  metrosEstimados: number;
-  precioMetro: number;
-  rolloIdsSeleccionados: string[];
 }
 
 function getColorHex(colorText?: string): string {
@@ -71,50 +56,17 @@ function getColorHex(colorText?: string): string {
 
 export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   stockList,
-  clientes = [],
-  defaultRegistradoPor,
-  onPedidoCreado,
-  onIrAPedidosPendientes,
+  posCartRolloIds = [],
+  onAgregarRolloAPos,
+  onIrAPos,
 }) => {
   const [filtroLineaActiva, setFiltroLineaActiva] = useState<string>('TODAS');
   const [terminoBusqueda, setTerminoBusqueda] = useState<string>('');
-  // Por defecto cerrado: al hacer clic en "Línea ... (Código)" se despliegan los códigos de colores
+
+  // Nivel 1: "Línea ... (Código)" -> al hacer clic despliega los códigos de colores
   const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});
-
-  // Estado del modal "+ Armar Pedido"
-  const [varianteSeleccionada, setVarianteSeleccionada] = useState<StockConsolidadoTela | null>(
-    null
-  );
-  const [modoPedido, setModoPedido] = useState<'ROLLOS' | 'METROS'>('ROLLOS');
-  const [cantidadPedido, setCantidadPedido] = useState<string>('1');
-  const [precioMetroInput, setPrecioMetroInput] = useState<string>('12.50');
-  const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string>('');
-  const [clientePedido, setClientePedido] = useState<string>('');
-  const [documentoCliente, setDocumentoCliente] = useState<string>('');
-  const [telefonoCliente, setTelefonoCliente] = useState<string>('');
-
-  const handleSeleccionarCliente = (id: string) => {
-    setClienteIdSeleccionado(id);
-    if (!id) return;
-    const found = clientes.find((c) => c.id === id);
-    if (found) {
-      setClientePedido(found.razon_social);
-      setDocumentoCliente(found.ruc);
-      setTelefonoCliente(found.telefonos || '');
-    }
-  };
-
-  // Carrito de pedido preliminar y modal de resumen
-  const [pedidoActual, setPedidoActual] = useState<ItemPedidoPreliminar[]>([]);
-  const [isResumenOpen, setIsResumenOpen] = useState<boolean>(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-
-  const mostrarToast = (mensaje: string) => {
-    setToastMsg(mensaje);
-    setTimeout(() => {
-      setToastMsg(null);
-    }, 2800);
-  };
+  // Nivel 2: "Código de Color" -> al hacer clic despliega los rollos físicos que pertenecen a ese código
+  const [coloresAbiertos, setColoresAbiertos] = useState<Record<string, boolean>>({});
 
   // Obtener todas las líneas únicas presentes en el inventario (normalizadas y sin duplicados)
   const lineasDisponibles = useMemo(() => {
@@ -137,7 +89,6 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
       const codigoArtNorm = normalizeSpaces(item.codigo).toUpperCase();
       const nombreLimpio = normalizeSpaces(item.nombre).replace(/8Tex/g, '8tex');
 
-      // Filtro por pestaña de línea (solo aplica si hay más de 1 línea real)
       if (
         filtroLineaActiva !== 'TODAS' &&
         lineaNorm.toLowerCase() !== filtroLineaActiva.toLowerCase()
@@ -145,13 +96,13 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
         return;
       }
 
-      // Filtro predictivo por texto (artículo, nombre, código de color, color, línea, rollo o lote)
       if (search) {
         const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(item.tela_id);
         const matchRollo = rollosFIFO.some(
           (r) =>
             r.codigo_rollo.toLowerCase().includes(search) ||
-            (r.lote && r.lote.toLowerCase().includes(search))
+            (r.lote && r.lote.toLowerCase().includes(search)) ||
+            (r.ubicacion && r.ubicacion.toLowerCase().includes(search))
         );
         const matchTexto =
           codigoArtNorm.toLowerCase().includes(search) ||
@@ -191,7 +142,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
       }
     });
 
-    // Ordenar variantes por Código de Color numérico/alfanumérico (2001, 2002, 2003...)
+    // Ordenar variantes por Código de Color numérico (2001, 2002, 2003...)
     return Array.from(mapGrupos.values()).map((g) => ({
       ...g,
       variantes: [...g.variantes].sort((a, b) =>
@@ -200,7 +151,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
     }));
   }, [stockList, filtroLineaActiva, terminoBusqueda]);
 
-  // Métricas globales de lo filtrado
+  // Métricas globales
   const totalArticulos = gruposFiltrados.length;
   const totalVariantesColor = gruposFiltrados.reduce((acc, g) => acc + g.variantes.length, 0);
   const totalRollosGlobal = gruposFiltrados.reduce((acc, g) => acc + g.totalRollos, 0);
@@ -213,162 +164,12 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
     }));
   };
 
-  // Abrir el modal de "+ Armar Pedido" para una variante
-  const abrirModalPedido = (variante: StockConsolidadoTela) => {
-    if (variante.total_metros_disponibles <= 0) return;
-    setVarianteSeleccionada(variante);
-    setModoPedido('ROLLOS');
-    setCantidadPedido('1');
-    const precioCatalogo = Number(variante.precio_lista) || 12.5;
-    setPrecioMetroInput(precioCatalogo.toFixed(2));
+  const toggleColor = (telaId: string) => {
+    setColoresAbiertos((prev) => ({
+      ...prev,
+      [telaId]: !prev[telaId],
+    }));
   };
-
-  const cerrarModalPedido = () => {
-    setVarianteSeleccionada(null);
-  };
-
-  const cambiarModoPedido = (nuevoModo: 'ROLLOS' | 'METROS') => {
-    setModoPedido(nuevoModo);
-    if (!varianteSeleccionada) return;
-    if (nuevoModo === 'ROLLOS') {
-      setCantidadPedido('1');
-    } else {
-      const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(varianteSeleccionada.tela_id);
-      const primerRolloMetros =
-        rollosFIFO.length > 0
-          ? rollosFIFO[0].metraje
-          : Math.min(50, varianteSeleccionada.total_metros_disponibles);
-      setCantidadPedido(String(primerRolloMetros));
-    }
-  };
-
-  const ajustarCantidadPedido = (delta: number) => {
-    if (!varianteSeleccionada) return;
-    let val = parseFloat(cantidadPedido) || 0;
-    val += delta;
-    if (val < 1) val = 1;
-
-    if (modoPedido === 'ROLLOS' && val > varianteSeleccionada.total_rollos_disponibles) {
-      val = varianteSeleccionada.total_rollos_disponibles;
-    }
-    if (modoPedido === 'METROS' && val > varianteSeleccionada.total_metros_disponibles) {
-      val = varianteSeleccionada.total_metros_disponibles;
-    }
-    setCantidadPedido(modoPedido === 'ROLLOS' ? String(Math.round(val)) : val.toFixed(2));
-  };
-
-  // Cálculo equivalente en el modal
-  const calculoEquivalente = useMemo(() => {
-    if (!varianteSeleccionada) return { rollosCount: 0, metrosAprox: 0, rolloIds: [] as string[] };
-    const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(varianteSeleccionada.tela_id);
-    const val = Math.max(0.1, parseFloat(cantidadPedido) || 1);
-
-    if (modoPedido === 'ROLLOS') {
-      const count = Math.min(Math.max(1, Math.round(val)), rollosFIFO.length);
-      const seleccionados = rollosFIFO.slice(0, count);
-      const sumaMetros = seleccionados.reduce((acc, r) => acc + r.metraje, 0);
-      return {
-        rollosCount: count,
-        metrosAprox: sumaMetros,
-        rolloIds: seleccionados.map((r) => r.id),
-      };
-    } else {
-      // Seleccionar rollos FIFO hasta cubrir los metros solicitados
-      const seleccionados: typeof rollosFIFO = [];
-      let acumulado = 0;
-      for (const r of rollosFIFO) {
-        if (acumulado < val) {
-          seleccionados.push(r);
-          acumulado += r.metraje;
-        } else {
-          break;
-        }
-      }
-      return {
-        rollosCount: seleccionados.length,
-        metrosAprox: acumulado,
-        rolloIds: seleccionados.map((r) => r.id),
-      };
-    }
-  }, [varianteSeleccionada, modoPedido, cantidadPedido]);
-
-  const confirmarAgregarAlPedido = () => {
-    if (!varianteSeleccionada || calculoEquivalente.rolloIds.length === 0) return;
-    const precio = Math.max(0.1, parseFloat(precioMetroInput) || 12.5);
-
-    const nuevoItem: ItemPedidoPreliminar = {
-      id: `item_${Date.now()}`,
-      tela: varianteSeleccionada,
-      modo: modoPedido,
-      cantidadRollos: calculoEquivalente.rollosCount,
-      metrosEstimados: calculoEquivalente.metrosAprox,
-      precioMetro: precio,
-      rolloIdsSeleccionados: calculoEquivalente.rolloIds,
-    };
-
-    // Reemplazar si ya estaba la misma tela o agregar
-    setPedidoActual((prev) => {
-      const sinMismaTela = prev.filter((x) => x.tela.tela_id !== varianteSeleccionada.tela_id);
-      return [...sinMismaTela, nuevoItem];
-    });
-
-    const colorNombre = varianteSeleccionada.color;
-    const cantTexto =
-      modoPedido === 'ROLLOS'
-        ? `${calculoEquivalente.rollosCount} rollo(s)`
-        : `${calculoEquivalente.metrosAprox.toFixed(2)} m`;
-
-    cerrarModalPedido();
-    mostrarToast(`Se agregó ${cantTexto} de ${colorNombre} al pedido.`);
-  };
-
-  const actualizarPrecioEnCarrito = (itemId: string, nuevoValor: string) => {
-    const num = parseFloat(nuevoValor);
-    if (Number.isNaN(num) || num <= 0) return;
-    setPedidoActual((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, precioMetro: num } : item))
-    );
-  };
-
-  const handleConfirmarOrdenDirecta = () => {
-    if (pedidoActual.length === 0) return;
-    const nombreClienteFinal = clientePedido.trim() || 'Cliente Mostrador';
-    const itemsParaStore: Array<{ rollo_id: string; precio_metro: number }> = [];
-
-    pedidoActual.forEach((item) => {
-      item.rolloIdsSeleccionados.forEach((rId) => {
-        itemsParaStore.push({
-          rollo_id: rId,
-          precio_metro: item.precioMetro,
-        });
-      });
-    });
-
-    try {
-      const nuevoPedido = inventoryStore.crearOrdenPedido({
-        cliente_nombre: nombreClienteFinal,
-        cliente_documento: documentoCliente.trim() || 'S/D',
-        cliente_telefono: telefonoCliente.trim() || undefined,
-        observaciones: 'Generado desde Consulta de Stock',
-        registrado_por: defaultRegistradoPor || 'Ventas 8tex',
-        items: itemsParaStore,
-      });
-
-      setPedidoActual([]);
-      setIsResumenOpen(false);
-      mostrarToast(`¡Orden ${nuevoPedido.codigo_pedido} creada en Pedidos Pendientes!`);
-      if (onPedidoCreado) onPedidoCreado(nuevoPedido);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error al generar el pedido');
-    }
-  };
-
-  const totalRollosPedido = pedidoActual.reduce((acc, i) => acc + i.cantidadRollos, 0);
-  const totalMetrosPedido = pedidoActual.reduce((acc, i) => acc + i.metrosEstimados, 0);
-  const totalSolesPedido = pedidoActual.reduce(
-    (acc, i) => acc + i.metrosEstimados * i.precioMetro,
-    0
-  );
 
   return (
     <div className="w-full select-none">
@@ -384,37 +185,22 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                 8t
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-semibold border border-blue-400/30 uppercase tracking-wide">
-                    Inventario Real
-                  </span>
-                  <span className="text-[10px] text-slate-400">· Rollo a Rollo</span>
-                </div>
                 <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight">
                   Consulta de Stock
                 </h1>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (pedidoActual.length === 0) {
-                  mostrarToast('El carrito de pedido está vacío. Toca "+ Pedir" en una tela.');
-                } else {
-                  setIsResumenOpen(true);
-                }
-              }}
-              className="relative px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-white/10 active:scale-95 transition flex items-center gap-1.5 text-xs font-bold cursor-pointer"
-            >
-              <ShoppingBag className="w-4 h-4 text-blue-300" />
-              <span>Mi Pedido</span>
-              {pedidoActual.length > 0 && (
-                <span className="bg-blue-500 text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
-                  {pedidoActual.length}
-                </span>
-              )}
-            </button>
+            {posCartRolloIds.length > 0 && onIrAPos && (
+              <button
+                type="button"
+                onClick={onIrAPos}
+                className="relative px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Carrito POS ({posCartRolloIds.length})</span>
+              </button>
+            )}
           </div>
 
           {/* Buscador Táctil Móvil */}
@@ -425,7 +211,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                 type="text"
                 value={terminoBusqueda}
                 onChange={(e) => setTerminoBusqueda(e.target.value)}
-                placeholder="Buscar artículo, color o código (ej: C-900, 4150, Silka)..."
+                placeholder="Buscar artículo, color, rollo o lote..."
                 className="w-full bg-[#0A1E3C] text-white placeholder-slate-400 rounded-xl pl-9 pr-8 py-2.5 text-xs font-medium border border-blue-900/80 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition"
               />
               {terminoBusqueda && (
@@ -439,7 +225,6 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
               )}
             </div>
 
-            {/* Solo mostrar filtro de líneas si existen 2 o más líneas distintas */}
             {lineasDisponibles.length > 1 && (
               <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
                 <button
@@ -481,8 +266,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             <span className="text-slate-500 font-medium">Artículos:</span>
             <span className="font-extrabold text-slate-800">{totalArticulos}</span>
             <span className="text-slate-300">|</span>
-            <span className="text-slate-500 font-medium">Variantes:</span>
-            <span className="font-extrabold text-slate-800">{totalVariantesColor} colores</span>
+            <span className="text-slate-500 font-medium">Colores:</span>
+            <span className="font-extrabold text-slate-800">{totalVariantesColor}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-slate-500 font-medium">Disponible:</span>
@@ -493,7 +278,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           </div>
         </section>
 
-        {/* Lista Agrupada Móvil */}
+        {/* Lista Jerárquica Móvil: Línea/Artículo -> Códigos de Color -> Rollos Físicos */}
         <div className="p-3 space-y-3">
           {gruposFiltrados.length === 0 ? (
             <div className="bg-white rounded-2xl p-8 text-center text-slate-400 space-y-2 border border-slate-200">
@@ -512,6 +297,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                   key={grupo.groupKey}
                   className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all"
                 >
+                  {/* NIVEL 1: Línea + Código de Artículo */}
                   <div
                     onClick={() => toggleArticulo(grupo.groupKey)}
                     className="p-3.5 bg-slate-50/70 hover:bg-slate-100/80 cursor-pointer flex items-center justify-between gap-2 border-b border-slate-100"
@@ -559,103 +345,168 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                     </div>
                   </div>
 
+                  {/* NIVEL 2: Códigos de Color (al hacer clic despliega sus rollos) */}
                   {estaAbierto && (
                     <div className="divide-y divide-slate-100">
                       {grupo.variantes.map((v) => {
                         const tieneStock = v.total_metros_disponibles > 0;
                         const badgeHex = getColorHex(v.color);
-                        const enCarrito = pedidoActual.some(
-                          (item) => item.tela.tela_id === v.tela_id
-                        );
                         const precioLista = Number(v.precio_lista) || 12.5;
+                        const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(v.tela_id);
+                        const isColorAbierto = Boolean(coloresAbiertos[v.tela_id]);
 
                         return (
-                          <div
-                            key={v.tela_id}
-                            className={`p-3 flex items-center justify-between gap-2 hover:bg-slate-50/60 transition ${
-                              tieneStock ? 'bg-white' : 'opacity-65 bg-slate-50/30'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="flex flex-col items-center shrink-0">
-                                <span
-                                  className={`px-2 py-1 rounded-lg text-xs font-black font-mono border ${
-                                    tieneStock
-                                      ? 'bg-slate-900 text-white border-slate-700'
-                                      : 'bg-slate-200 text-slate-500 border-slate-300'
-                                  }`}
-                                >
-                                  {v.codigo_color}
-                                </span>
-                                <span
-                                  className="w-4 h-1.5 rounded-full mt-1"
-                                  style={{ backgroundColor: badgeHex }}
-                                />
-                              </div>
-
-                              <div className="min-w-0">
-                                <div className="text-xs font-bold text-slate-800 truncate">
-                                  {v.nombre}
-                                </div>
-                                <div className="text-[11px] font-semibold text-blue-700 truncate">
-                                  {v.color}
-                                </div>
-                                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                                  <span>
-                                    {v.total_rollos_disponibles}{' '}
-                                    {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
-                                  </span>
-                                  <span>·</span>
-                                  <span className="font-mono font-bold text-emerald-700">
-                                    S/ {precioLista.toFixed(2)}/m
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="text-right">
-                                <div
-                                  className={`text-sm font-black font-mono ${
-                                    tieneStock ? 'text-slate-900' : 'text-slate-400'
-                                  } flex items-baseline justify-end gap-0.5`}
-                                >
-                                  <span>{v.total_metros_disponibles.toFixed(2)}</span>
+                          <div key={v.tela_id} className="bg-white">
+                            {/* Fila del Código de Color */}
+                            <div
+                              onClick={() => toggleColor(v.tela_id)}
+                              className={`p-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-blue-50/30 transition ${
+                                tieneStock ? 'bg-white' : 'opacity-65 bg-slate-50/30'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="flex flex-col items-center shrink-0">
                                   <span
-                                    className={`text-[10px] font-bold font-sans ${
-                                      tieneStock ? 'text-blue-600' : 'text-slate-400'
+                                    className={`px-2 py-1 rounded-lg text-xs font-black font-mono border ${
+                                      tieneStock
+                                        ? 'bg-slate-900 text-white border-slate-700'
+                                        : 'bg-slate-200 text-slate-500 border-slate-300'
                                     }`}
                                   >
-                                    m
+                                    {v.codigo_color}
                                   </span>
+                                  <span
+                                    className="w-4 h-1.5 rounded-full mt-1"
+                                    style={{ backgroundColor: badgeHex }}
+                                  />
                                 </div>
-                                <span
-                                  className={`text-[10px] font-medium ${
-                                    tieneStock
-                                      ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                                      : 'text-slate-400 bg-slate-100'
-                                  } px-1.5 py-0.5 rounded inline-block`}
-                                >
-                                  {tieneStock ? 'Disponible' : 'Sin Stock'}
-                                </span>
+
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-slate-800 truncate">
+                                    {v.nombre}
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-blue-700 truncate">
+                                    {v.color}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                    <span className="font-mono font-bold text-emerald-700">
+                                      S/ {precioLista.toFixed(2)}/m
+                                    </span>
+                                    <span>·</span>
+                                    <span>
+                                      {v.total_rollos_disponibles}{' '}
+                                      {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
 
-                              <button
-                                type="button"
-                                disabled={!tieneStock}
-                                onClick={() => abrirModalPedido(v)}
-                                className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-xs transition active:scale-95 ${
-                                  !tieneStock
-                                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                    : enCarrito
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 cursor-pointer'
-                                }`}
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>{enCarrito ? 'Listo' : 'Pedir'}</span>
-                              </button>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right">
+                                  <div
+                                    className={`text-sm font-black font-mono ${
+                                      tieneStock ? 'text-slate-900' : 'text-slate-400'
+                                    } flex items-baseline justify-end gap-0.5`}
+                                  >
+                                    <span>{v.total_metros_disponibles.toFixed(2)}</span>
+                                    <span
+                                      className={`text-[10px] font-bold font-sans ${
+                                        tieneStock ? 'text-blue-600' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      m
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-blue-600">
+                                    {isColorAbierto
+                                      ? 'Ocultar rollos'
+                                      : `Ver rollos (${rollosFIFO.length})`}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-transform ${
+                                    isColorAbierto
+                                      ? 'rotate-180 bg-blue-100 text-blue-700'
+                                      : 'bg-slate-100 text-slate-500'
+                                  }`}
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
                             </div>
+
+                            {/* NIVEL 3: Rollos físicos del Código de Color (con botón + Armar Pedido en cada rollo) */}
+                            {isColorAbierto && (
+                              <div className="bg-slate-50/90 border-t border-slate-200/80 p-3 space-y-2">
+                                {rollosFIFO.length === 0 ? (
+                                  <div className="text-center py-3 text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+                                    Sin rollos físicos disponibles para este código de color.
+                                  </div>
+                                ) : (
+                                  rollosFIFO.map((rollo, idx) => {
+                                    const enCarritoPos = posCartRolloIds.includes(rollo.id);
+                                    return (
+                                      <div
+                                        key={rollo.id}
+                                        className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 shadow-2xs"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                              #{idx + 1}
+                                            </span>
+                                            <span className="font-mono font-bold text-slate-900 text-xs">
+                                              {rollo.codigo_rollo}
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-mono font-semibold text-slate-700">
+                                              Lote: {rollo.lote || 'S/L'}
+                                            </span>
+                                            <span>·</span>
+                                            <span>{rollo.ubicacion || 'Almacén Central'}</span>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <div className="text-right font-mono font-black text-sm text-slate-900">
+                                            {rollo.metraje.toFixed(2)}{' '}
+                                            <span className="text-[10px] text-blue-600 font-sans">
+                                              m
+                                            </span>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (onAgregarRolloAPos) onAgregarRolloAPos(rollo);
+                                            }}
+                                            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer ${
+                                              enCarritoPos
+                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            }`}
+                                          >
+                                            {enCarritoPos ? (
+                                              <>
+                                                <Check className="w-3.5 h-3.5" />
+                                                <span>En POS</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <ShoppingCart className="w-3.5 h-3.5" />
+                                                <span>Armar Pedido</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -666,44 +517,20 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             })
           )}
         </div>
-
-        {/* Barra Flotante de Pedido Activo (Solo Móvil) */}
-        {pedidoActual.length > 0 && (
-          <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3.5 flex items-center justify-between gap-3 shadow-lg">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block">
-                Pedido en Armado ({pedidoActual.length}{' '}
-                {pedidoActual.length === 1 ? 'variante' : 'variantes'})
-              </span>
-              <div className="text-sm font-black text-slate-900 font-mono">
-                {totalRollosPedido} rollos · {totalMetrosPedido.toFixed(2)} m
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsResumenOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-blue-500/25 cursor-pointer"
-            >
-              <span>Confirmar Pedido</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ============================================================================
-          VISTA 2: MODO COMPUTADORA / ESCRITORIO (hidden lg:block) — Vista amplia y completa
+          VISTA 2: MODO COMPUTADORA / ESCRITORIO (hidden lg:block) — Tabla amplia a 12 columnas
           ============================================================================ */}
       <div className="hidden lg:block space-y-6">
         {/* Cabecera Amplia de Escritorio (#0F284E) */}
         <div className="bg-[#0F284E] text-white rounded-3xl p-5 shadow-md border border-blue-900/50 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center font-black text-2xl text-blue-200 shadow-inner">
+            <div className="w-11 h-11 rounded-2xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center font-black text-xl text-blue-200 shadow-inner">
               8t
             </div>
             <div>
-              <span className="text-sm font-black tracking-wider text-white uppercase">
+              <span className="text-base font-black tracking-wider text-white uppercase">
                 Consulta de Stock
               </span>
             </div>
@@ -717,7 +544,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                 type="text"
                 value={terminoBusqueda}
                 onChange={(e) => setTerminoBusqueda(e.target.value)}
-                placeholder="Buscar por código de artículo (C-900), cód. color (4150), nombre, color, lote o rollo (ROL-...)..."
+                placeholder="Buscar por línea, artículo (C-900), cód. color (2003), color, lote o rollo (ROL-...)..."
                 className="w-full bg-[#0A1E3C] text-white placeholder-slate-400 rounded-2xl pl-11 pr-10 py-3 text-sm font-medium border border-blue-800/80 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-inner"
               />
               {terminoBusqueda && (
@@ -732,7 +559,7 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
             </div>
           </div>
 
-          {/* Indicadores Globales en Cabecera */}
+          {/* Indicadores Globales en Cabecera + Acceso al Carrito POS si tiene rollos */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="px-4 py-2 rounded-2xl bg-[#0A1E3C] border border-blue-800/70 text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
@@ -751,118 +578,130 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                 <span className="text-xs font-bold text-blue-300 font-sans">m</span>
               </span>
             </div>
+
+            {posCartRolloIds.length > 0 && onIrAPos && (
+              <button
+                type="button"
+                onClick={onIrAPos}
+                className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center gap-2 shadow-md cursor-pointer transition"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Ver Carrito en POS ({posCartRolloIds.length})</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Grilla Principal de 12 Columnas: Tabla Completa de Stock (12 cols cuando no hay pedido, 8+4 cuando hay pedido en armado) */}
-        <div className="grid grid-cols-12 gap-6 items-start">
-          {/* COLUMNA PRINCIPAL: Tabla Amplia Agrupada por Línea y Código de Artículo */}
-          <div className={`${pedidoActual.length > 0 ? 'col-span-8' : 'col-span-12'} space-y-5`}>
-            {gruposFiltrados.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center text-slate-400 space-y-2 border border-slate-200 shadow-xs">
-                <Package className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-bold text-slate-600">
-                  No se encontraron telas o rollos bajo este criterio de búsqueda.
-                </p>
-              </div>
-            ) : (
-              gruposFiltrados.map((grupo) => {
-                const estaAbierto =
-                  Boolean(terminoBusqueda.trim()) || Boolean(articulosAbiertos[grupo.groupKey]);
+        {/* Tabla Completa de Stock a Pantalla Completa (sin ventana lateral de Mi Pedido) */}
+        <div className="space-y-5">
+          {gruposFiltrados.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center text-slate-400 space-y-2 border border-slate-200 shadow-xs">
+              <Package className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-sm font-bold text-slate-600">
+                No se encontraron telas o rollos bajo este criterio de búsqueda.
+              </p>
+            </div>
+          ) : (
+            gruposFiltrados.map((grupo) => {
+              const estaAbierto =
+                Boolean(terminoBusqueda.trim()) || Boolean(articulosAbiertos[grupo.groupKey]);
 
-                return (
+              return (
+                <div
+                  key={grupo.groupKey}
+                  className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden"
+                >
+                  {/* NIVEL 1: Cabecera Amplia del Artículo: Línea + (Código de Artículo) */}
                   <div
-                    key={grupo.groupKey}
-                    className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden"
+                    onClick={() => toggleArticulo(grupo.groupKey)}
+                    className="px-6 py-4 bg-slate-50/90 hover:bg-blue-50/40 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80 transition"
                   >
-                    {/* Cabecera Amplia del Artículo: Línea + (Código de Artículo) */}
-                    <div
-                      onClick={() => toggleArticulo(grupo.groupKey)}
-                      className="px-6 py-4 bg-slate-50/90 hover:bg-blue-50/40 cursor-pointer flex items-center justify-between gap-4 border-b border-slate-200/80 transition"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <span className="px-3.5 h-10 rounded-xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200 shadow-2xs">
-                          {grupo.codigoArticulo}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2.5 flex-wrap">
-                            <h2 className="text-base font-black text-slate-900">
-                              Línea {grupo.linea} ({grupo.codigoArticulo})
-                            </h2>
-                            <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                              {grupo.variantes.length} códigos de color
-                            </span>
-                            <span className="text-xs text-slate-500 font-semibold">
-                              · Ancho: <strong className="text-slate-700">{grupo.ancho}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
-                            {grupo.nombreBase}
-                          </p>
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span className="px-3.5 h-10 rounded-xl bg-blue-100 text-blue-800 font-mono text-sm font-black flex items-center justify-center shrink-0 border border-blue-200 shadow-2xs">
+                        {grupo.codigoArticulo}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h2 className="text-base font-black text-slate-900">
+                            Línea {grupo.linea} ({grupo.codigoArticulo})
+                          </h2>
+                          <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                            {grupo.variantes.length} códigos de color
+                          </span>
+                          <span className="text-xs text-slate-500 font-semibold">
+                            · Ancho: <strong className="text-slate-700">{grupo.ancho}</strong>
+                          </span>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="text-right">
-                          <div className="text-base font-black text-slate-900 font-mono">
-                            {grupo.totalMetros.toFixed(2)}{' '}
-                            <span className="text-xs text-blue-600 font-bold font-sans">m</span>
-                          </div>
-                          <div className="text-xs text-slate-500 font-bold flex items-center justify-end gap-1">
-                            <Layers className="w-3.5 h-3.5 text-blue-600" />
-                            <span>
-                              {grupo.totalRollos} {grupo.totalRollos === 1 ? 'rollo físico' : 'rollos físicos'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                            estaAbierto
-                              ? 'bg-blue-600 text-white shadow-2xs'
-                              : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/70'
-                          }`}
-                        >
-                          <span>{estaAbierto ? 'Ocultar Colores' : 'Ver Colores'}</span>
-                          <ChevronDown
-                            className={`w-4 h-4 transition-transform ${
-                              estaAbierto ? 'rotate-180' : ''
-                            }`}
-                          />
-                        </div>
+                        <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
+                          {grupo.nombreBase}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Tabla Completa de Variantes de Color en Escritorio */}
-                    {estaAbierto && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50/60 border-b border-slate-200/80 text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                              <th className="py-3 pl-6 pr-3">Cód. Color</th>
-                              <th className="py-3 px-3">Artículo / Tela</th>
-                              <th className="py-3 px-3">Variante de Color</th>
-                              <th className="py-3 px-3 text-right">Precio Lista</th>
-                              <th className="py-3 px-3">Rollos Físicos en Almacén</th>
-                              <th className="py-3 px-3 text-right">Stock Disponible</th>
-                              <th className="py-3 pl-3 pr-6 text-right">Acción</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 text-xs">
-                            {grupo.variantes.map((v) => {
-                              const tieneStock = v.total_metros_disponibles > 0;
-                              const badgeHex = getColorHex(v.color);
-                              const enCarrito = pedidoActual.some(
-                                (item) => item.tela.tela_id === v.tela_id
-                              );
-                              const precioLista = Number(v.precio_lista) || 12.5;
-                              const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(v.tela_id);
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="text-right">
+                        <div className="text-base font-black text-slate-900 font-mono">
+                          {grupo.totalMetros.toFixed(2)}{' '}
+                          <span className="text-xs text-blue-600 font-bold font-sans">m</span>
+                        </div>
+                        <div className="text-xs text-slate-500 font-bold flex items-center justify-end gap-1">
+                          <Layers className="w-3.5 h-3.5 text-blue-600" />
+                          <span>
+                            {grupo.totalRollos}{' '}
+                            {grupo.totalRollos === 1 ? 'rollo físico' : 'rollos físicos'}
+                          </span>
+                        </div>
+                      </div>
 
-                              return (
+                      <div
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
+                          estaAbierto
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/70'
+                        }`}
+                      >
+                        <span>{estaAbierto ? 'Ocultar Colores' : 'Ver Colores'}</span>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            estaAbierto ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* NIVEL 2: Tabla de Códigos de Color (al hacer clic en un código de color se despliegan sus rollos) */}
+                  {estaAbierto && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/60 border-b border-slate-200/80 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                            <th className="py-3 pl-6 pr-3">Cód. Color</th>
+                            <th className="py-3 px-3">Artículo / Tela</th>
+                            <th className="py-3 px-3">Variante de Color</th>
+                            <th className="py-3 px-3 text-right">Precio Lista</th>
+                            <th className="py-3 px-3 text-right">Rollos en Almacén</th>
+                            <th className="py-3 px-3 text-right">Stock Disponible</th>
+                            <th className="py-3 pl-3 pr-6 text-right">Rollos del Color</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                          {grupo.variantes.map((v) => {
+                            const tieneStock = v.total_metros_disponibles > 0;
+                            const badgeHex = getColorHex(v.color);
+                            const precioLista = Number(v.precio_lista) || 12.5;
+                            const rollosFIFO = inventoryStore.getRollosDisponiblesFIFO(v.tela_id);
+                            const isColorAbierto = Boolean(coloresAbiertos[v.tela_id]);
+
+                            return (
+                              <React.Fragment key={v.tela_id}>
+                                {/* Fila del Código de Color (clic para desplegar sus rollos) */}
                                 <tr
-                                  key={v.tela_id}
-                                  className={`transition ${
-                                    tieneStock
+                                  onClick={() => toggleColor(v.tela_id)}
+                                  className={`cursor-pointer transition ${
+                                    isColorAbierto
+                                      ? 'bg-blue-50/40'
+                                      : tieneStock
                                       ? 'hover:bg-blue-50/30 bg-white'
                                       : 'bg-slate-50/40 opacity-65'
                                   }`}
@@ -875,13 +714,18 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                         style={{ backgroundColor: badgeHex }}
                                       />
                                       <span
-                                        className={`px-2.5 py-1 rounded-lg text-xs font-black font-mono border ${
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black font-mono border ${
                                           tieneStock
                                             ? 'bg-slate-900 text-white border-slate-700'
                                             : 'bg-slate-200 text-slate-500 border-slate-300'
                                         }`}
                                       >
-                                        {v.codigo_color}
+                                        {isColorAbierto ? (
+                                          <ChevronDown className="w-3.5 h-3.5 text-blue-300" />
+                                        ) : (
+                                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                        )}
+                                        <span>{v.codigo_color}</span>
                                       </span>
                                     </div>
                                   </td>
@@ -913,30 +757,18 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                     </span>
                                   </td>
 
-                                  {/* Rollos Físicos Disponibles */}
-                                  <td className="py-3.5 px-3">
-                                    {rollosFIFO.length > 0 ? (
-                                      <div className="flex flex-wrap items-center gap-1.5">
-                                        {rollosFIFO.slice(0, 4).map((r) => (
-                                          <span
-                                            key={r.id}
-                                            className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px] font-mono font-bold text-slate-700"
-                                            title={`${r.codigo_rollo} · Lote: ${r.lote || 'S/L'} · ${r.ubicacion || 'Almacén'}`}
-                                          >
-                                            {r.codigo_rollo.replace('ROL-2026-', '#')} ({Number(r.metraje).toFixed(0)}m)
-                                          </span>
-                                        ))}
-                                        {rollosFIFO.length > 4 && (
-                                          <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                                            +{rollosFIFO.length - 4} más
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[11px] text-slate-400 italic">
-                                        0 rollos en almacén
-                                      </span>
-                                    )}
+                                  {/* Rollos en Almacén */}
+                                  <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                                    <span
+                                      className={`text-xs font-bold px-2.5 py-1 rounded-full inline-block font-mono ${
+                                        tieneStock
+                                          ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                                          : 'text-slate-400 bg-slate-100'
+                                      }`}
+                                    >
+                                      {v.total_rollos_disponibles}{' '}
+                                      {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
+                                    </span>
                                   </td>
 
                                   {/* Stock Disponible */}
@@ -951,591 +783,173 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                         m
                                       </span>
                                     </div>
-                                    <span
-                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
-                                        tieneStock
-                                          ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                                          : 'text-slate-400 bg-slate-100'
-                                      }`}
-                                    >
-                                      {v.total_rollos_disponibles}{' '}
-                                      {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
-                                    </span>
                                   </td>
 
-                                  {/* Botón + Armar Pedido */}
+                                  {/* Desplegar Rollos del Color */}
                                   <td className="py-3.5 pl-3 pr-6 text-right whitespace-nowrap">
                                     <button
                                       type="button"
-                                      disabled={!tieneStock}
-                                      onClick={() => abrirModalPedido(v)}
-                                      className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 shadow-2xs transition active:scale-95 ${
-                                        !tieneStock
-                                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                          : enCarrito
-                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 cursor-pointer'
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleColor(v.tela_id);
+                                      }}
+                                      className={`px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                                        isColorAbierto
+                                          ? 'bg-blue-600 text-white shadow-2xs'
+                                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                       }`}
                                     >
-                                      <Plus className="w-3.5 h-3.5" />
-                                      <span>{enCarrito ? 'En Pedido' : 'Armar Pedido'}</span>
+                                      <span>
+                                        {isColorAbierto
+                                          ? 'Ocultar Rollos'
+                                          : `Ver Rollos (${rollosFIFO.length})`}
+                                      </span>
+                                      <ChevronDown
+                                        className={`w-3.5 h-3.5 transition-transform ${
+                                          isColorAbierto ? 'rotate-180' : ''
+                                        }`}
+                                      />
                                     </button>
                                   </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
 
-          {/* COLUMNA DERECHA FIJA EN COMPUTADORA (4 COLUMNAS): Visible cuando se agregan colores al pedido */}
-          {pedidoActual.length > 0 && (
-          <div className="col-span-4 sticky top-20">
-            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-md overflow-hidden flex flex-col">
-              {/* Cabecera del Panel Derecho */}
-              <div className="bg-[#0F284E] text-white p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center">
-                    <ShoppingBag className="w-4 h-4 text-blue-200" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black tracking-tight">Mi Pedido en Armado</h3>
-                    <p className="text-[11px] text-blue-200">
-                      {pedidoActual.length === 0
-                        ? 'Haz clic en "+ Armar Pedido" en cualquier color'
-                        : `${pedidoActual.length} variante(s) · ${totalRollosPedido} rollo(s)`}
-                    </p>
-                  </div>
-                </div>
-                {pedidoActual.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPedidoActual([])}
-                    className="text-[11px] text-rose-300 hover:text-rose-200 font-bold px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-400/20 cursor-pointer"
-                  >
-                    Vaciar
-                  </button>
-                )}
-              </div>
+                                {/* NIVEL 3: Despliegue de Rollos Físicos que pertenecen a este Código de Color */}
+                                {isColorAbierto && (
+                                  <tr>
+                                    <td
+                                      colSpan={7}
+                                      className="bg-slate-50/80 p-0 border-y border-slate-200/90"
+                                    >
+                                      <div className="px-8 py-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                                            <Layers className="w-4 h-4 text-blue-600" />
+                                            <span>
+                                              Rollos de Cód. Color {v.codigo_color} — {v.color} (
+                                              {rollosFIFO.length}{' '}
+                                              {rollosFIFO.length === 1
+                                                ? 'rollo disponible'
+                                                : 'rollos disponibles'}
+                                              )
+                                            </span>
+                                          </div>
+                                        </div>
 
-              {/* Selección de Cliente en el Panel Derecho */}
-              <div className="p-4 bg-slate-50/70 border-b border-slate-200/80 space-y-2.5">
-                {clientes.length > 0 && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-blue-800 mb-1 flex items-center gap-1">
-                      <User className="w-3.5 h-3.5" />
-                      <span>Seleccionar Cliente Registrado:</span>
-                    </label>
-                    <select
-                      value={clienteIdSeleccionado}
-                      onChange={(e) => handleSeleccionarCliente(e.target.value)}
-                      className="w-full bg-white text-xs font-semibold text-slate-900 rounded-xl p-2.5 border border-slate-300 focus:border-blue-500 focus:outline-none shadow-2xs"
-                    >
-                      <option value="">-- Elegir de la lista de Clientes --</option>
-                      {clientes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.razon_social} — RUC: {c.ruc}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                                        {rollosFIFO.length === 0 ? (
+                                          <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
+                                            No hay rollos físicos disponibles actualmente para este código de color.
+                                          </div>
+                                        ) : (
+                                          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                                            <table className="w-full text-xs">
+                                              <thead className="bg-slate-100/80 text-slate-600 border-b border-slate-200 font-bold uppercase text-[11px]">
+                                                <tr>
+                                                  <th className="py-2.5 pl-4 pr-3 text-left">#</th>
+                                                  <th className="py-2.5 px-3 text-left">
+                                                    Código de Rollo
+                                                  </th>
+                                                  <th className="py-2.5 px-3 text-right">
+                                                    Metraje Registrado
+                                                  </th>
+                                                  <th className="py-2.5 px-3 text-left">
+                                                    Ubicación en Almacén
+                                                  </th>
+                                                  <th className="py-2.5 px-3 text-left">
+                                                    Lote / DUA
+                                                  </th>
+                                                  <th className="py-2.5 pl-3 pr-4 text-right">
+                                                    Acción (Carrito POS)
+                                                  </th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="divide-y divide-slate-100">
+                                                {rollosFIFO.map((rollo, idx) => {
+                                                  const enCarritoPos = posCartRolloIds.includes(
+                                                    rollo.id
+                                                  );
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                      Razón Social / Cliente
-                    </label>
-                    <input
-                      type="text"
-                      value={clientePedido}
-                      onChange={(e) => setClientePedido(e.target.value)}
-                      placeholder="Ej. Confecciones Gamarra"
-                      className="w-full bg-white text-xs font-semibold rounded-xl p-2 border border-slate-300 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                      RUC / DNI
-                    </label>
-                    <input
-                      type="text"
-                      value={documentoCliente}
-                      onChange={(e) => setDocumentoCliente(e.target.value)}
-                      placeholder="Ej. 20601234567"
-                      className="w-full bg-white text-xs font-mono font-semibold rounded-xl p-2 border border-slate-300 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Lista de Ítems en el Pedido */}
-              <div className="p-4 space-y-2.5 max-h-[380px] overflow-y-auto">
-                {pedidoActual.length === 0 ? (
-                  <div className="py-10 text-center text-slate-400 space-y-2">
-                    <Tag className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-xs font-semibold text-slate-500">
-                      Aún no has seleccionado rollos para este pedido.
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Usa el botón <strong>+ Armar Pedido</strong> en la tabla de la izquierda para elegir cantidad de rollos o metraje.
-                    </p>
-                  </div>
-                ) : (
-                  pedidoActual.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs font-black text-slate-900 truncate">
-                            {item.tela.codigo} · {item.tela.nombre}
-                          </div>
-                          <div className="text-[11px] font-bold text-blue-700">
-                            Cód. {item.tela.codigo_color} — {item.tela.color}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-mono">
-                            {item.cantidadRollos} rollo(s) · {item.metrosEstimados.toFixed(2)} m
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPedidoActual((prev) => prev.filter((x) => x.id !== item.id))
-                          }
-                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                          title="Quitar del pedido"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-slate-500">Precio S/:</span>
-                          <input
-                            type="number"
-                            step="0.10"
-                            min="0.10"
-                            value={item.precioMetro}
-                            onChange={(e) => actualizarPrecioEnCarrito(item.id, e.target.value)}
-                            className="w-20 text-right font-mono font-black text-xs bg-white border border-blue-400 rounded-lg py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span className="text-[10px] text-slate-400 font-bold">/m</span>
-                        </div>
-                        <div className="font-mono font-black text-slate-900 text-sm">
-                          S/ {(item.metrosEstimados * item.precioMetro).toFixed(2)}
-                        </div>
-                      </div>
+                                                  return (
+                                                    <tr
+                                                      key={rollo.id}
+                                                      className="hover:bg-blue-50/30 transition"
+                                                    >
+                                                      <td className="py-2.5 pl-4 pr-3 font-mono font-bold text-blue-600">
+                                                        #{idx + 1}
+                                                      </td>
+                                                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
+                                                        {rollo.codigo_rollo}
+                                                      </td>
+                                                      <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 text-sm">
+                                                        {rollo.metraje.toFixed(2)}{' '}
+                                                        <span className="text-[10px] font-bold text-blue-600 font-sans">
+                                                          m
+                                                        </span>
+                                                      </td>
+                                                      <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                                        <span className="inline-flex items-center gap-1">
+                                                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                                          <span>
+                                                            {rollo.ubicacion || 'Almacén Central'}
+                                                          </span>
+                                                        </span>
+                                                      </td>
+                                                      <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                                                          <Tag className="w-3 h-3 text-slate-500" />
+                                                          <span>{rollo.lote || 'S/L'}</span>
+                                                        </span>
+                                                      </td>
+                                                      <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            if (onAgregarRolloAPos) {
+                                                              onAgregarRolloAPos(rollo);
+                                                            }
+                                                          }}
+                                                          className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer ${
+                                                            enCarritoPos
+                                                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
+                                                          }`}
+                                                        >
+                                                          {enCarritoPos ? (
+                                                            <>
+                                                              <Check className="w-3.5 h-3.5" />
+                                                              <span>En Carrito POS (Ver POS)</span>
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <ShoppingCart className="w-3.5 h-3.5" />
+                                                              <span>+ Armar Pedido</span>
+                                                            </>
+                                                          )}
+                                                        </button>
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* Pie del Panel Derecho con Totales y Confirmación */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-500">
-                    Total ({totalRollosPedido} rollos · {totalMetrosPedido.toFixed(2)} m):
-                  </span>
-                  <span className="text-lg font-black text-[#0F284E] font-mono">
-                    S/ {totalSolesPedido.toFixed(2)}
-                  </span>
+                  )}
                 </div>
-
-                <button
-                  type="button"
-                  disabled={pedidoActual.length === 0}
-                  onClick={handleConfirmarOrdenDirecta}
-                  className={`w-full py-3 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition ${
-                    pedidoActual.length === 0
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25 cursor-pointer active:scale-98'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Generar Orden de Pedido</span>
-                </button>
-              </div>
-            </div>
-          </div>
+              );
+            })
           )}
         </div>
       </div>
-
-      {/* ================= MODAL ERGONÓMICO '+ ARMAR PEDIDO' ================= */}
-      {varianteSeleccionada && (
-        <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150"
-          onClick={cerrarModalPedido}
-        >
-          <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl border-t sm:border border-slate-200 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Manija y Cabecera Modal */}
-            <div className="p-4 pb-3 border-b border-slate-100">
-              <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden" />
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-mono text-[10px] font-bold">
-                      {varianteSeleccionada.codigo}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {varianteSeleccionada.linea || 'Moda Masculino'}
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-black text-slate-900 mt-0.5">
-                    {varianteSeleccionada.nombre}
-                  </h3>
-                  <p className="text-xs font-semibold text-blue-700">
-                    {varianteSeleccionada.codigo_color} · {varianteSeleccionada.color}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={cerrarModalPedido}
-                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center active:scale-90 transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Cuerpo del Modal: Stock actual e inputs de pedido */}
-            <div className="p-4 space-y-3.5 overflow-y-auto flex-1">
-              {/* Tarjeta de Disponibilidad */}
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-medium text-slate-500 block">
-                    Stock Disponible Real:
-                  </span>
-                  <div className="text-lg font-black text-slate-900 flex items-baseline gap-1 font-mono">
-                    <span>{varianteSeleccionada.total_metros_disponibles.toFixed(2)}</span>
-                    <span className="text-xs text-blue-600 font-bold font-sans">m</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] font-medium text-slate-500 block">
-                    Físico en Almacén:
-                  </span>
-                  <div className="text-sm font-extrabold text-slate-700 flex items-center gap-1 justify-end">
-                    <Layers className="w-4 h-4 text-blue-600" />
-                    <span>
-                      {varianteSeleccionada.total_rollos_disponibles}{' '}
-                      {varianteSeleccionada.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Selección de Método de Pedido */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Modo de Despacho:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => cambiarModoPedido('ROLLOS')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      modoPedido === 'ROLLOS'
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-2xs'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Por Rollos Enteros</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => cambiarModoPedido('METROS')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      modoPedido === 'METROS'
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-2xs'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <Ruler className="w-3.5 h-3.5" />
-                    <span>Por Metraje Exacto</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Input de Cantidad */}
-              <div className="bg-blue-50/60 rounded-2xl p-3.5 border border-blue-200/60 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                  <span>
-                    {modoPedido === 'ROLLOS' ? 'Rollos a solicitar:' : 'Metros a despachar:'}
-                  </span>
-                  <span className="text-[11px] font-semibold text-blue-700">
-                    {modoPedido === 'ROLLOS'
-                      ? `Equivale a ${calculoEquivalente.metrosAprox.toFixed(2)} m (${calculoEquivalente.rollosCount} rollo/s FIFO)`
-                      : `Se asignan ${calculoEquivalente.rollosCount} rollo(s) (${calculoEquivalente.metrosAprox.toFixed(2)} m)`}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => ajustarCantidadPedido(-1)}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-300 text-slate-800 text-lg font-black active:scale-90 flex items-center justify-center shadow-xs cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <div className="relative w-32">
-                    <input
-                      type="number"
-                      value={cantidadPedido}
-                      min="1"
-                      max={
-                        modoPedido === 'ROLLOS'
-                          ? varianteSeleccionada.total_rollos_disponibles
-                          : varianteSeleccionada.total_metros_disponibles
-                      }
-                      step={modoPedido === 'ROLLOS' ? '1' : '0.5'}
-                      onChange={(e) => setCantidadPedido(e.target.value)}
-                      className="w-full text-center text-xl font-black text-slate-900 bg-white border-2 border-blue-500 rounded-xl py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => ajustarCantidadPedido(1)}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-300 text-slate-800 text-lg font-black active:scale-90 flex items-center justify-center shadow-xs cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Precio por Metro y Cliente */}
-              <div className="space-y-2.5">
-                {clientes.length > 0 && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-blue-700 mb-1">
-                      Seleccionar Cliente Registrado:
-                    </label>
-                    <select
-                      value={clienteIdSeleccionado}
-                      onChange={(e) => handleSeleccionarCliente(e.target.value)}
-                      className="w-full bg-blue-50/70 text-xs font-semibold text-slate-900 rounded-xl p-2.5 border border-blue-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="">-- Elegir cliente o escribir abajo --</option>
-                      {clientes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.razon_social} (RUC: {c.ruc})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Precio por Metro (S/.):
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      value={precioMetroInput}
-                      onChange={(e) => setPrecioMetroInput(e.target.value)}
-                      className="w-full bg-slate-50 text-xs font-mono font-bold rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Cliente / Cotización (Opcional):
-                    </label>
-                    <input
-                      type="text"
-                      value={clientePedido}
-                      onChange={(e) => setClientePedido(e.target.value)}
-                      placeholder="Ej. Confecciones D'Moda S.A.C."
-                      className="w-full bg-slate-50 text-xs rounded-xl p-2.5 border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Pie del Modal con Confirmación de Pedido */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={cerrarModalPedido}
-                className="w-1/3 py-3 rounded-2xl bg-white border border-slate-300 text-slate-700 font-bold text-xs active:scale-95 transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarAgregarAlPedido}
-                className="w-2/3 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/30 active:scale-95 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Agregar al Pedido</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL DE RESUMEN Y GENERACIÓN DE ORDEN ================= */}
-      {isResumenOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150"
-          onClick={() => setIsResumenOpen(false)}
-        >
-          <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Resumen de Pedido a Generar</h3>
-                <p className="text-[11px] text-slate-500">
-                  Se enviará directamente a la pestaña de Pedidos Pendientes
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsResumenOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
-              {clientes.length > 0 && (
-                <div>
-                  <label className="block text-[11px] font-bold text-blue-700 mb-1">
-                    Seleccionar Cliente Registrado
-                  </label>
-                  <select
-                    value={clienteIdSeleccionado}
-                    onChange={(e) => handleSeleccionarCliente(e.target.value)}
-                    className="w-full bg-blue-50/70 font-semibold text-slate-900 rounded-xl p-2.5 border border-blue-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="">-- Elegir de la lista de Clientes --</option>
-                    {clientes.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.razon_social} — RUC: {c.ruc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Nombre / Razón Social *
-                  </label>
-                  <input
-                    type="text"
-                    value={clientePedido}
-                    onChange={(e) => setClientePedido(e.target.value)}
-                    placeholder="Ej. Confecciones D'Moda S.A.C."
-                    className="w-full bg-slate-50 rounded-xl p-2.5 border border-slate-300 focus:bg-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    RUC / DNI (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={documentoCliente}
-                    onChange={(e) => setDocumentoCliente(e.target.value)}
-                    placeholder="Ej. 20601234567"
-                    className="w-full bg-slate-50 rounded-xl p-2.5 border border-slate-300 font-mono focus:bg-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                {pedidoActual.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 truncate">
-                        {item.tela.codigo} · {item.tela.nombre}
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-semibold">
-                        Cód. {item.tela.codigo_color} - {item.tela.color}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {item.cantidadRollos} rollo(s) · {item.metrosEstimados.toFixed(2)} m × S/.{' '}
-                        {item.precioMetro.toFixed(2)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono font-black text-slate-900">
-                        S/. {(item.metrosEstimados * item.precioMetro).toFixed(2)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPedidoActual((prev) => prev.filter((x) => x.id !== item.id))
-                        }
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsResumenOpen(false)}
-                className="w-1/3 py-3 rounded-2xl bg-white border border-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
-              >
-                Seguir Viendo
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmarOrdenDirecta}
-                className="w-2/3 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Generar Orden de Pedido</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= NOTIFICACIÓN TOAST FLOTANTE ================= */}
-      {toastMsg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0F284E] text-white px-4 py-2.5 rounded-2xl shadow-xl border border-blue-400/40 flex items-center gap-2 text-xs font-bold animate-in fade-in duration-200">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMsg}</span>
-          {onIrAPedidosPendientes && (
-            <button
-              type="button"
-              onClick={onIrAPedidosPendientes}
-              className="ml-1 underline text-blue-300 hover:text-white cursor-pointer"
-            >
-              Ver Pedidos
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 };
