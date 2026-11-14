@@ -47,11 +47,14 @@ export type PermisoModulo =
   | 'accion:facturar_despachar'
   | 'accion:eliminar_registros';
 
+export type TipoCliente = 'MAYORISTA' | 'CONFECCIONISTA';
+
 /** TABLA: ochotex_bd.clientes (Directorio de Clientes Comerciales) */
 export interface Cliente {
   id: string; // UUIDv4
   razon_social: string;
   ruc: string;
+  tipo_cliente?: TipoCliente; // 'MAYORISTA' | 'CONFECCIONISTA'
   correos: string;
   telefonos: string;
   direccion: string;

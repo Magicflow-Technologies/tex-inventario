@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Cliente } from '../types/inventory';
+import { Cliente, TipoCliente } from '../types/inventory';
 import { inventoryStore } from '../services/inventoryStore';
 import {
   Building2,
@@ -36,6 +36,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
   // Campos del formulario
   const [razonSocial, setRazonSocial] = useState('');
   const [ruc, setRuc] = useState('');
+  const [tipoCliente, setTipoCliente] = useState<TipoCliente>('MAYORISTA');
   const [correos, setCorreos] = useState('');
   const [telefonos, setTelefonos] = useState('');
   const [direccion, setDireccion] = useState('');
@@ -57,6 +58,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
       const fullText = [
         c.razon_social,
         c.ruc,
+        c.tipo_cliente || 'MAYORISTA',
         c.correos || '',
         c.telefonos || '',
         c.direccion || '',
@@ -74,6 +76,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
     setEditingClienteId(null);
     setRazonSocial('');
     setRuc('');
+    setTipoCliente('MAYORISTA');
     setCorreos('');
     setTelefonos('');
     setDireccion('');
@@ -87,6 +90,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
     setEditingClienteId(c.id);
     setRazonSocial(c.razon_social);
     setRuc(c.ruc);
+    setTipoCliente(c.tipo_cliente || 'MAYORISTA');
     setCorreos(c.correos || '');
     setTelefonos(c.telefonos || '');
     setDireccion(c.direccion || '');
@@ -126,6 +130,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
         id: editingClienteId || undefined,
         razon_social: razonSocial,
         ruc,
+        tipo_cliente: tipoCliente,
         correos,
         telefonos,
         direccion,
@@ -220,9 +225,22 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#1a73e8] font-mono text-[11px] font-bold border border-blue-200 mb-1">
-                      RUC: {c.ruc}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#1a73e8] font-mono text-[11px] font-bold border border-blue-200">
+                        RUC: {c.ruc}
+                      </span>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          (c.tipo_cliente || 'MAYORISTA') === 'CONFECCIONISTA'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        {(c.tipo_cliente || 'MAYORISTA') === 'CONFECCIONISTA'
+                          ? 'Confeccionista'
+                          : 'Mayorista'}
+                      </span>
+                    </div>
                     <h3 className="text-sm font-bold text-slate-900 leading-tight">
                       {c.razon_social}
                     </h3>
@@ -302,6 +320,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                   <tr>
                     <th className="py-3.5 px-4">Razón Social</th>
                     <th className="py-3.5 px-3 whitespace-nowrap">RUC / Doc.</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">Tipo de Cliente</th>
                     <th className="py-3.5 px-3">Nombre de Contacto</th>
                     <th className="py-3.5 px-3">Teléfonos</th>
                     <th className="py-3.5 px-3">Correos</th>
@@ -311,13 +330,26 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {clientesFiltrados.map((c) => (
+                  {clientesFiltrados.map((c) => {
+                    const esConfeccionista = (c.tipo_cliente || 'MAYORISTA') === 'CONFECCIONISTA';
+                    return (
                     <tr key={c.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
                         {c.razon_social}
                       </td>
                       <td className="py-3.5 px-3 font-mono font-bold text-[#1a73e8] whitespace-nowrap">
                         {c.ruc}
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                            esConfeccionista
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {esConfeccionista ? 'Confeccionista' : 'Mayorista'}
+                        </span>
                       </td>
                       <td className="py-3.5 px-3 text-slate-800 font-medium">
                         {c.nombre_contacto || <span className="text-slate-400">—</span>}
@@ -363,7 +395,8 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -433,6 +466,37 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-[#1a73e8]"
                     required
                   />
+                </div>
+              </div>
+
+              {/* Tipo de Cliente: Mayorista o Confeccionista */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1.5">
+                  Tipo de Cliente *
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setTipoCliente('MAYORISTA')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      tipoCliente === 'MAYORISTA'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>Mayorista</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoCliente('CONFECCIONISTA')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      tipoCliente === 'CONFECCIONISTA'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>Confeccionista</span>
+                  </button>
                 </div>
               </div>
 

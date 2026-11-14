@@ -13,6 +13,7 @@ import {
   FaseAprobacionPedido,
   EstadoPedido,
   Cliente,
+  TipoCliente,
   Perfil,
   Usuario,
   UsuarioConPerfil,
@@ -162,6 +163,32 @@ function encodeUbicacionConPrecioCompra(ubicacion: string, precioCompra?: number
   return cleanUbicacion;
 }
 
+function normalizeCliente(c: Cliente): Cliente {
+  const rawObs = String(c.observaciones || '');
+  const matchTag = rawObs.match(/^\[TIPO:(MAYORISTA|CONFECCIONISTA)\]\s*(.*)$/s);
+  let cleanObs = matchTag ? (matchTag[2] || '').trim() : rawObs.trim();
+  let tipo: TipoCliente = 'MAYORISTA';
+
+  if (c.tipo_cliente === 'MAYORISTA' || c.tipo_cliente === 'CONFECCIONISTA') {
+    tipo = c.tipo_cliente;
+  } else if (matchTag) {
+    tipo = matchTag[1] as TipoCliente;
+  } else if (cleanObs.toLowerCase().includes('confeccion')) {
+    tipo = 'CONFECCIONISTA';
+  }
+
+  return {
+    ...c,
+    tipo_cliente: tipo,
+    observaciones: cleanObs,
+  };
+}
+
+function encodeClienteObservaciones(tipo: TipoCliente, obs?: string): string {
+  const cleanObs = (obs || '').replace(/^\[TIPO:(MAYORISTA|CONFECCIONISTA)\]\s*/s, '').trim();
+  return cleanObs ? `[TIPO:${tipo}] ${cleanObs}` : `[TIPO:${tipo}]`;
+}
+
 export function normalizeSpaces(text?: string | null): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -225,7 +252,7 @@ class InventoryStore {
       }
 
       if (storedClientes) {
-        this.clientes = JSON.parse(storedClientes);
+        this.clientes = (JSON.parse(storedClientes) as Cliente[]).map(normalizeCliente);
       }
 
       if (storedTelas && storedRollos && storedMovs && storedDet && storedPed && storedPedDet) {
@@ -308,18 +335,18 @@ class InventoryStore {
       const perfiles = rawPerfiles.filter((p) => p.codigo !== SYSTEM_CLIENTES_CODIGO);
 
       if (Array.isArray(clientesTabla) && clientesTabla.length > 0) {
-        this.clientes = clientesTabla;
+        this.clientes = clientesTabla.map(normalizeCliente);
       } else if (sysClientesRow && sysClientesRow.descripcion) {
         try {
           const parsed = JSON.parse(sysClientesRow.descripcion);
           if (Array.isArray(parsed)) {
-            this.clientes = parsed;
+            this.clientes = parsed.map(normalizeCliente);
           }
         } catch {
           // conservar local
         }
       } else if (Array.isArray(clientesTabla)) {
-        this.clientes = clientesTabla;
+        this.clientes = clientesTabla.map(normalizeCliente);
       }
 
       this.perfiles = perfiles.map((p) => ({
@@ -728,15 +755,19 @@ class InventoryStore {
     if (data.id) {
       const idx = this.clientes.findIndex((c) => c.id === data.id);
       if (idx !== -1) {
+        const tipoFinal: TipoCliente =
+          data.tipo_cliente || this.clientes[idx].tipo_cliente || 'MAYORISTA';
+        const cleanObs = (data.observaciones ?? this.clientes[idx].observaciones ?? '').trim();
         this.clientes[idx] = {
           ...this.clientes[idx],
           razon_social: cleanRazonSocial,
           ruc: cleanRuc,
+          tipo_cliente: tipoFinal,
           correos: (data.correos ?? this.clientes[idx].correos ?? '').trim(),
           telefonos: (data.telefonos ?? this.clientes[idx].telefonos ?? '').trim(),
           direccion: (data.direccion ?? this.clientes[idx].direccion ?? '').trim(),
           nombre_contacto: (data.nombre_contacto ?? this.clientes[idx].nombre_contacto ?? '').trim(),
-          observaciones: (data.observaciones ?? this.clientes[idx].observaciones ?? '').trim(),
+          observaciones: cleanObs,
           activo: data.activo !== undefined ? data.activo : this.clientes[idx].activo,
           updated_at: now,
         };
@@ -745,7 +776,11 @@ class InventoryStore {
 
         void (async () => {
           try {
-            await supabaseRest.update('clientes', `id=eq.${updated.id}`, updated);
+            const { tipo_cliente, ...dbRest } = updated;
+            await supabaseRest.update('clientes', `id=eq.${updated.id}`, {
+              ...dbRest,
+              observaciones: encodeClienteObservaciones(tipo_cliente || 'MAYORISTA', updated.observaciones),
+            });
           } catch {
             // Si la tabla física clientes aún no existe, el backup en ochotex_bd lo persiste
           }
@@ -756,10 +791,12 @@ class InventoryStore {
       }
     }
 
+    const tipoNuevo: TipoCliente = data.tipo_cliente || 'MAYORISTA';
     const nuevoCliente: Cliente = {
       id: generateUUID(),
       razon_social: cleanRazonSocial,
       ruc: cleanRuc,
+      tipo_cliente: tipoNuevo,
       correos: (data.correos || '').trim(),
       telefonos: (data.telefonos || '').trim(),
       direccion: (data.direccion || '').trim(),
@@ -775,7 +812,11 @@ class InventoryStore {
 
     void (async () => {
       try {
-        await supabaseRest.insert('clientes', nuevoCliente);
+        const { tipo_cliente, ...dbRest } = nuevoCliente;
+        await supabaseRest.insert('clientes', {
+          ...dbRest,
+          observaciones: encodeClienteObservaciones(tipo_cliente || 'MAYORISTA', nuevoCliente.observaciones),
+        });
       } catch {
         // Respaldo automático en ochotex_bd
       }
