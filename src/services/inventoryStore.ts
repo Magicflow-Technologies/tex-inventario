@@ -1539,6 +1539,74 @@ class InventoryStore {
     return [...this.telas];
   }
 
+  /**
+   * Actualiza los datos maestros a nivel de Código de Artículo (Línea, Nombre Base,
+   * P. Mayorista, P. Confeccionista y Ancho) propagándose a todos los Códigos de Color
+   * que pertenecen a ese Código de Artículo.
+   */
+  public saveArticuloMaestro(data: {
+    codigoOriginal: string;
+    nuevoCodigo: string;
+    linea: string;
+    nombreBase?: string;
+    precio_mayorista: number;
+    precio_confeccionista: number;
+    ancho: number;
+  }): number {
+    const cleanOrig = data.codigoOriginal.trim().toUpperCase();
+    const cleanNuevo = data.nuevoCodigo.trim().toUpperCase();
+    if (!cleanNuevo) {
+      throw new Error('El Código de Artículo es obligatorio.');
+    }
+
+    const now = new Date().toISOString();
+    const pMay = Number(Number(data.precio_mayorista || 0).toFixed(2));
+    const pConf = Number(Number(data.precio_confeccionista || pMay).toFixed(2));
+    const anchoNum = Number(data.ancho) || 1.6;
+    const lineaNorm = normalizeLinea(data.linea);
+    const loteCodificado = encodePreciosInLote(pMay, pConf);
+
+    const affectedTelas: Tela[] = [];
+    this.telas = this.telas.map((t) => {
+      if (t.codigo.trim().toUpperCase() !== cleanOrig) return t;
+      const updated: Tela = {
+        ...t,
+        codigo: cleanNuevo,
+        nombre: data.nombreBase?.trim() ? data.nombreBase.trim() : t.nombre,
+        linea: lineaNorm,
+        precio_lista: pMay,
+        precio_mayorista: pMay,
+        precio_confeccionista: pConf,
+        lote: loteCodificado,
+        ancho: anchoNum,
+        updated_at: now,
+      };
+      affectedTelas.push(updated);
+      return updated;
+    });
+
+    this.persist();
+
+    void (async () => {
+      for (const updated of affectedTelas) {
+        try {
+          await supabaseRest.update('telas', `id=eq.${updated.id}`, {
+            codigo: updated.codigo,
+            nombre: updated.nombre,
+            linea: updated.linea,
+            lote: loteCodificado,
+            ancho: updated.ancho,
+            updated_at: updated.updated_at,
+          });
+        } catch (e) {
+          console.error('Error actualizando artículo maestro en Supabase:', e);
+        }
+      }
+    })();
+
+    return affectedTelas.length;
+  }
+
   public saveTela(telaData: Partial<Tela> & { nombre: string; codigo: string }): Tela {
     const now = new Date().toISOString();
     const cleanCodigo = telaData.codigo.trim().toUpperCase();
