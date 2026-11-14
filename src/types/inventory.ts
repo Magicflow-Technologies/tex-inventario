@@ -130,6 +130,7 @@ export interface Rollo {
   metraje: number; // Metros exactos del rollo físico
   lote: string; // Lote del proveedor / DUA propio de este rollo
   ubicacion: string; // Ej. Estante B - Nivel 2
+  precio_compra?: number; // Precio de Compra por metro al ingresar el rollo
   estado: EstadoRollo;
   fecha_ingreso: string; // TIMESTAMPTZ
   fecha_salida: string | null; // TIMESTAMPTZ

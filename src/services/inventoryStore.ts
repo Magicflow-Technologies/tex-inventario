@@ -134,6 +134,34 @@ function encodePreciosInLote(precioMayorista: number, precioConfeccionista?: num
   return `[PRECIO_LISTA:${pMay}|P_MAYORISTA:${pMay}|P_CONFECCIONISTA:${pConf}]`;
 }
 
+function parseRolloUbicacionYPrecioCompra(r: Partial<Rollo>): {
+  ubicacion: string;
+  precio_compra: number;
+} {
+  const rawUbicacion = String(r.ubicacion || 'Almacén Central');
+  const match = rawUbicacion.match(/\s*\[P_COMPRA:([0-9.]+)\]\s*$/);
+  const cleanUbicacion = rawUbicacion.replace(/\s*\[P_COMPRA:[0-9.]+\]\s*$/, '').trim() || 'Almacén Central';
+  if (typeof r.precio_compra === 'number' && !Number.isNaN(r.precio_compra) && r.precio_compra >= 0) {
+    return { ubicacion: cleanUbicacion, precio_compra: Number(r.precio_compra) };
+  }
+  if (match) {
+    const parsed = parseFloat(match[1]);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      return { ubicacion: cleanUbicacion, precio_compra: parsed };
+    }
+  }
+  return { ubicacion: cleanUbicacion, precio_compra: 0 };
+}
+
+function encodeUbicacionConPrecioCompra(ubicacion: string, precioCompra?: number): string {
+  const cleanUbicacion = (ubicacion || 'Almacén Central').replace(/\s*\[P_COMPRA:[0-9.]+\]\s*$/, '').trim();
+  const p = Number(precioCompra || 0);
+  if (p > 0) {
+    return `${cleanUbicacion} [P_COMPRA:${p.toFixed(2)}]`;
+  }
+  return cleanUbicacion;
+}
+
 export function normalizeSpaces(text?: string | null): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -225,7 +253,16 @@ class InventoryStore {
             precio_confeccionista: pConf,
           };
         });
-        this.rollos = JSON.parse(storedRollos);
+        const rawLocalRollos: Rollo[] = JSON.parse(storedRollos);
+        this.rollos = rawLocalRollos.map((r) => {
+          const { ubicacion, precio_compra } = parseRolloUbicacionYPrecioCompra(r);
+          return {
+            ...r,
+            metraje: Number(r.metraje),
+            ubicacion,
+            precio_compra,
+          };
+        });
         this.movimientos = JSON.parse(storedMovs);
         this.detalles = JSON.parse(storedDet);
         this.pedidos = JSON.parse(storedPed);
@@ -319,10 +356,15 @@ class InventoryStore {
           stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
         };
       });
-      this.rollos = rollos.map((r) => ({
-        ...r,
-        metraje: Number(r.metraje),
-      }));
+      this.rollos = rollos.map((r) => {
+        const { ubicacion, precio_compra } = parseRolloUbicacionYPrecioCompra(r);
+        return {
+          ...r,
+          metraje: Number(r.metraje),
+          ubicacion,
+          precio_compra,
+        };
+      });
       this.movimientos = movimientos.map((m) => ({
         ...m,
         estado:
@@ -974,6 +1016,7 @@ class InventoryStore {
       metraje: number;
       lote: string;
       ubicacion: string;
+      precio_compra?: number;
       codigo_rollo?: string;
     }>;
   }): { movimientoId: string; rollosCreados: Rollo[] } {
@@ -1017,6 +1060,7 @@ class InventoryStore {
         throw new Error(`El código de rollo ${codigoRollo} ya se encuentra registrado en almacén.`);
       }
 
+      const precioCompraNum = Number(Number(r.precio_compra || 0).toFixed(2));
       const rollo: Rollo = {
         id: rolloId,
         tela_id: r.tela_id,
@@ -1024,6 +1068,7 @@ class InventoryStore {
         metraje: Number(Number(r.metraje).toFixed(2)),
         lote: r.lote.trim() || 'LOTE-STD',
         ubicacion: r.ubicacion.trim() || 'Almacén Central',
+        precio_compra: precioCompraNum,
         estado: 'DISPONIBLE',
         fecha_ingreso: now,
         fecha_salida: null,
@@ -1054,7 +1099,11 @@ class InventoryStore {
           ...nuevoMovimiento,
           usuario_id: this.currentUser?.id || null,
         });
-        await supabaseRest.insert('rollos', nuevosRollos);
+        const rollosDbPayload = nuevosRollos.map(({ precio_compra, ...rest }) => ({
+          ...rest,
+          ubicacion: encodeUbicacionConPrecioCompra(rest.ubicacion, precio_compra),
+        }));
+        await supabaseRest.insert('rollos', rollosDbPayload);
         await supabaseRest.insert('movimiento_detalles', nuevosDetalles);
       } catch (e) {
         console.error('Error sincronizando ingreso en Supabase:', e);
