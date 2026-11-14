@@ -55,6 +55,8 @@ interface VarianteColorNodo {
 interface ArticuloJerarquico {
   codigoArticulo: string;
   nombreBase: string;
+  precioMayorista: number;
+  precioConfeccionista: number;
   colores: VarianteColorNodo[];
 }
 
@@ -284,10 +286,15 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         rollos: rollosDeVariante,
       };
 
+      const pMay = Number(t.precio_mayorista ?? getPrecioListaSugerido(t));
+      const pConf = Number(t.precio_confeccionista ?? pMay);
+
       if (!artMap.has(codArt)) {
         artMap.set(codArt, {
           codigoArticulo: codArt,
           nombreBase: nombreComercialLimpio,
+          precioMayorista: pMay,
+          precioConfeccionista: pConf,
           colores: [nodoColor],
         });
       } else {
@@ -725,11 +732,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               </h4>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
-                {canVerPrecioLista && (
-                  <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                    Lista: S/ {col.precioLista.toFixed(2)}/m
-                  </span>
-                )}
               </div>
               <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
                 <Layers className="w-3 h-3 text-slate-400 shrink-0" />
@@ -1143,6 +1145,16 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                             <p className="text-[11px] text-slate-600 font-semibold truncate">
                               {art.nombreBase}
                             </p>
+                            {canVerPrecioLista && (
+                              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[10px] font-extrabold">
+                                  P. Mayorista: S/ {art.precioMayorista.toFixed(2)}/m
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono text-[10px] font-extrabold">
+                                  P. Confecc.: S/ {art.precioConfeccionista.toFixed(2)}/m
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1363,6 +1375,22 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                 <span className="text-xs text-slate-500 font-semibold">
                                   · Ancho: <strong className="text-slate-700">{anchoEjemplo}</strong>
                                 </span>
+                                {canVerPrecioLista && (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
+                                      P. Mayorista: S/ {art.precioMayorista.toFixed(2)}
+                                      <span className="text-[10px] font-sans font-semibold text-emerald-700">
+                                        /m
+                                      </span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono font-black text-xs">
+                                      P. Confeccionista: S/ {art.precioConfeccionista.toFixed(2)}
+                                      <span className="text-[10px] font-sans font-semibold text-indigo-700">
+                                        /m
+                                      </span>
+                                    </span>
+                                  </>
+                                )}
                               </div>
                               <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
                                 {art.nombreBase}
@@ -1533,11 +1561,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                 /m
                                               </span>
                                             </div>
-                                            {canVerPrecioLista && (
-                                              <span className="text-[10px] font-mono text-slate-400 font-semibold">
-                                                Lista: S/ {col.precioLista.toFixed(2)}
-                                              </span>
-                                            )}
                                           </div>
                                         </td>
 
