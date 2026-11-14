@@ -748,30 +748,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Precio / Metro Editable en línea */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200"
-            >
-              <span className="text-[10px] font-black text-slate-600">S/</span>
-              <input
-                type="number"
-                step="0.10"
-                min="0.10"
-                readOnly={!canEditarPrecioPos}
-                disabled={!canEditarPrecioPos}
-                value={precioNegociadoActual}
-                onChange={(e) => actualizarPrecioColor(col.tela, e.target.value)}
-                className={`w-14 text-right font-black text-xs bg-white border rounded-lg py-0.5 px-1 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${
-                  !canEditarPrecioPos
-                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                    : precioRebajado
-                    ? 'border-amber-400 text-amber-900'
-                    : 'border-slate-300 text-slate-900'
-                }`}
-              />
-            </div>
-
             <div className="text-right">
               <div
                 className={`text-sm font-black font-mono ${
@@ -1440,7 +1416,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                   <th className="py-3 pl-5 pr-3">Cód. Color</th>
                                   <th className="py-3 px-3">Artículo / Tela</th>
                                   <th className="py-3 px-3">Variante de Color</th>
-                                  <th className="py-3 px-3 text-right">Precio / Metro</th>
                                   <th className="py-3 px-3 text-right">Rollos Disp.</th>
                                   <th className="py-3 px-3 text-right">Stock Disp.</th>
                                   <th className="py-3 pl-3 pr-5 text-right">Rollos del Color</th>
@@ -1527,41 +1502,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                 : 'rollos en pedido'}
                                             </span>
                                           )}
-                                        </td>
-
-                                        {/* Precio / Metro (Lista + Editable) */}
-                                        <td
-                                          className="py-3.5 px-3 text-right whitespace-nowrap"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <div className="inline-flex flex-col items-end gap-1">
-                                            <div className="flex items-center gap-1">
-                                              <span className="text-[11px] font-black text-slate-700">
-                                                S/
-                                              </span>
-                                              <input
-                                                type="number"
-                                                step="0.10"
-                                                min="0.10"
-                                                readOnly={!canEditarPrecioPos}
-                                                disabled={!canEditarPrecioPos}
-                                                value={precioNegociadoActual}
-                                                onChange={(e) =>
-                                                  actualizarPrecioColor(col.tela, e.target.value)
-                                                }
-                                                className={`w-18 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
-                                                  !canEditarPrecioPos
-                                                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                                                    : precioRebajado
-                                                    ? 'border-amber-400 text-amber-900'
-                                                    : 'border-slate-300 text-slate-900'
-                                                }`}
-                                              />
-                                              <span className="text-[10px] text-slate-400 font-bold">
-                                                /m
-                                              </span>
-                                            </div>
-                                          </div>
                                         </td>
 
                                         {/* Rollos Disponibles */}
