@@ -34,6 +34,9 @@ interface PuntoVentaViewProps {
   defaultRegistradoPor?: string;
   selectedRolloIds?: string[];
   onChangeSelectedRolloIds?: React.Dispatch<React.SetStateAction<string[]>>;
+  canVerPrecioLista?: boolean;
+  canEditarPrecioPos?: boolean;
+  canVerUbicacionLote?: boolean;
   onPedidoCreado: (pedido: PedidoCompleto) => void;
   onIrAPedidosPendientes: () => void;
   onIrAClientes?: () => void;
@@ -109,6 +112,9 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   defaultRegistradoPor,
   selectedRolloIds,
   onChangeSelectedRolloIds,
+  canVerPrecioLista = true,
+  canEditarPrecioPos = true,
+  canVerUbicacionLote = true,
   onPedidoCreado,
   onIrAPedidosPendientes,
   onIrAClientes,
@@ -719,9 +725,11 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               </h4>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
-                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                  Lista: S/ {col.precioLista.toFixed(2)}/m
-                </span>
+                {canVerPrecioLista && (
+                  <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Lista: S/ {col.precioLista.toFixed(2)}/m
+                  </span>
+                )}
               </div>
               <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
                 <Layers className="w-3 h-3 text-slate-400 shrink-0" />
@@ -748,10 +756,14 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 type="number"
                 step="0.10"
                 min="0.10"
+                readOnly={!canEditarPrecioPos}
+                disabled={!canEditarPrecioPos}
                 value={precioNegociadoActual}
                 onChange={(e) => actualizarPrecioColor(col.tela, e.target.value)}
                 className={`w-14 text-right font-black text-xs bg-white border rounded-lg py-0.5 px-1 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${
-                  precioRebajado
+                  !canEditarPrecioPos
+                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                    : precioRebajado
                     ? 'border-amber-400 text-amber-900'
                     : 'border-slate-300 text-slate-900'
                 }`}
@@ -814,13 +826,15 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                           {rollo.codigo_rollo}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-semibold text-slate-700">
-                          Lote: {rollo.lote || 'S/L'}
-                        </span>
-                        <span>·</span>
-                        <span>{rollo.ubicacion || 'Almacén Central'}</span>
-                      </div>
+                      {canVerUbicacionLote && (
+                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-semibold text-slate-700">
+                            Lote: {rollo.lote || 'S/L'}
+                          </span>
+                          <span>·</span>
+                          <span>{rollo.ubicacion || 'Almacén Central'}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
@@ -1501,12 +1515,16 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                 type="number"
                                                 step="0.10"
                                                 min="0.10"
+                                                readOnly={!canEditarPrecioPos}
+                                                disabled={!canEditarPrecioPos}
                                                 value={precioNegociadoActual}
                                                 onChange={(e) =>
                                                   actualizarPrecioColor(col.tela, e.target.value)
                                                 }
                                                 className={`w-18 text-right font-black text-xs bg-white border rounded-lg py-1 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs font-mono ${
-                                                  precioRebajado
+                                                  !canEditarPrecioPos
+                                                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                                    : precioRebajado
                                                     ? 'border-amber-400 text-amber-900'
                                                     : 'border-slate-300 text-slate-900'
                                                 }`}
@@ -1515,9 +1533,11 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                 /m
                                               </span>
                                             </div>
-                                            <span className="text-[10px] font-mono text-slate-400 font-semibold">
-                                              Lista: S/ {col.precioLista.toFixed(2)}
-                                            </span>
+                                            {canVerPrecioLista && (
+                                              <span className="text-[10px] font-mono text-slate-400 font-semibold">
+                                                Lista: S/ {col.precioLista.toFixed(2)}
+                                              </span>
+                                            )}
                                           </div>
                                         </td>
 
@@ -1616,12 +1636,16 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                         <th className="py-2.5 px-3 text-right">
                                                           Metraje Registrado
                                                         </th>
-                                                        <th className="py-2.5 px-3 text-left">
-                                                          Ubicación en Almacén
-                                                        </th>
-                                                        <th className="py-2.5 px-3 text-left">
-                                                          Lote / DUA
-                                                        </th>
+                                                        {canVerUbicacionLote && (
+                                                          <>
+                                                            <th className="py-2.5 px-3 text-left">
+                                                              Ubicación en Almacén
+                                                            </th>
+                                                            <th className="py-2.5 px-3 text-left">
+                                                              Lote / DUA
+                                                            </th>
+                                                          </>
+                                                        )}
                                                         <th className="py-2.5 pl-3 pr-4 text-right">
                                                           Acción (Pedido)
                                                         </th>
@@ -1654,21 +1678,25 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                                 m
                                                               </span>
                                                             </td>
-                                                            <td className="py-2.5 px-3 text-slate-700 font-medium">
-                                                              <span className="inline-flex items-center gap-1">
-                                                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                                                                <span>
-                                                                  {rollo.ubicacion ||
-                                                                    'Almacén Central'}
-                                                                </span>
-                                                              </span>
-                                                            </td>
-                                                            <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
-                                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
-                                                                <Tag className="w-3 h-3 text-slate-500" />
-                                                                <span>{rollo.lote || 'S/L'}</span>
-                                                              </span>
-                                                            </td>
+                                                            {canVerUbicacionLote && (
+                                                              <>
+                                                                <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                                                  <span className="inline-flex items-center gap-1">
+                                                                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                                                    <span>
+                                                                      {rollo.ubicacion ||
+                                                                        'Almacén Central'}
+                                                                    </span>
+                                                                  </span>
+                                                                </td>
+                                                                <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
+                                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                                                                    <Tag className="w-3 h-3 text-slate-500" />
+                                                                    <span>{rollo.lote || 'S/L'}</span>
+                                                                  </span>
+                                                                </td>
+                                                              </>
+                                                            )}
                                                             <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
                                                               <button
                                                                 type="button"

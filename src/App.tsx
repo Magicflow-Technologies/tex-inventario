@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { inventoryStore } from './services/inventoryStore';
-import { RolloConTela } from './types/inventory';
+import { RolloConTela, Perfil } from './types/inventory';
+import { getAllowedTabs, hasPermission } from './utils/permissions';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { LoginView } from './components/LoginView';
 import { StockConsolidadoView } from './components/StockConsolidadoView';
@@ -39,6 +40,7 @@ export default function App() {
 
   // Estados de navegación y modales
   const [activeTab, setActiveTab] = useState<ActiveTab>('consulta_stock');
+  const [simulatedPerfilId, setSimulatedPerfilId] = useState<string | null>(null);
   const [isIngresoOpen, setIsIngresoOpen] = useState(false);
   const [isSalidaOpen, setIsSalidaOpen] = useState(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
@@ -79,6 +81,15 @@ export default function App() {
       />
     );
   }
+
+  const simulatedPerfil: Perfil | null = simulatedPerfilId
+    ? perfiles.find((p) => p.id === simulatedPerfilId) || null
+    : null;
+
+  const allowedTabs = getAllowedTabs(currentUser, simulatedPerfil);
+  const effectiveTab: ActiveTab = allowedTabs.includes(activeTab)
+    ? activeTab
+    : allowedTabs[0] || 'consulta_stock';
 
   const defaultResponsable = `${currentUser.nombre_completo} (${currentUser.perfil?.nombre || currentUser.cargo || '8tex'})`;
 
@@ -122,7 +133,7 @@ export default function App() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Top Bar Navigation */}
       <Navbar
-        activeTab={activeTab}
+        activeTab={effectiveTab}
         onTabChange={(tab) => {
           if (tab !== 'pos') setInitialTelaIdPos(undefined);
           setActiveTab(tab);
@@ -139,8 +150,22 @@ export default function App() {
         alertCount={alertCount}
         pedidosPendientesCount={pedidosPendientes.length}
         currentUser={currentUser}
+        perfiles={perfiles}
+        simulatedPerfil={simulatedPerfil}
+        onChangeSimulatedPerfil={(p) => {
+          setSimulatedPerfilId(p ? p.id : null);
+          showToast(
+            p ? `Vista de Rol activa: ${p.codigo}` : 'Vista de Administrador restaurada',
+            p
+              ? `Visualizando el sistema con los permisos de ${p.nombre}.`
+              : 'Se restauró el acceso completo de Administrador.'
+          );
+        }}
         supabaseConnected={connStatus.connected}
-        onLogout={() => inventoryStore.logout()}
+        onLogout={() => {
+          setSimulatedPerfilId(null);
+          inventoryStore.logout();
+        }}
       />
 
       {/* Toast Notification */}
@@ -162,7 +187,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {activeTab === 'stock' && (
+        {effectiveTab === 'stock' && (
           <StockConsolidadoView
             stockList={stockList}
             posCartRolloIds={posCartRolloIds}
@@ -175,16 +200,18 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'consulta_stock' && (
+        {effectiveTab === 'consulta_stock' && (
           <ConsultaStockMovilView
             stockList={stockList}
             posCartRolloIds={posCartRolloIds}
+            canVerPrecioLista={hasPermission(currentUser, 'campo:ver_precio_lista', simulatedPerfil)}
+            canVerUbicacionLote={hasPermission(currentUser, 'campo:ver_ubicacion_lote', simulatedPerfil)}
             onAgregarRolloAPos={handleAgregarRolloAPos}
             onIrAPos={() => setActiveTab('pos')}
           />
         )}
 
-        {activeTab === 'pos' && (
+        {effectiveTab === 'pos' && (
           <PuntoVentaView
             telas={telas}
             clientes={clientes}
@@ -193,6 +220,9 @@ export default function App() {
             defaultRegistradoPor={defaultResponsable}
             selectedRolloIds={posCartRolloIds}
             onChangeSelectedRolloIds={setPosCartRolloIds}
+            canVerPrecioLista={hasPermission(currentUser, 'campo:ver_precio_lista', simulatedPerfil)}
+            canEditarPrecioPos={hasPermission(currentUser, 'campo:editar_precio_pos', simulatedPerfil)}
+            canVerUbicacionLote={hasPermission(currentUser, 'campo:ver_ubicacion_lote', simulatedPerfil)}
             onPedidoCreado={(pedido) => {
               showToast(
                 `Orden ${pedido.codigo_pedido} Creada`,
@@ -204,7 +234,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'clientes' && (
+        {effectiveTab === 'clientes' && (
           <ClientesView
             clientes={clientes}
             onSeleccionarParaPos={(cliente) => {
@@ -219,7 +249,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'pedidos' && (
+        {effectiveTab === 'pedidos' && (
           <PedidosPorFacturarView
             pedidos={pedidos}
             defaultRegistradoPor={defaultResponsable}
@@ -233,7 +263,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'trazabilidad' && (
+        {effectiveTab === 'trazabilidad' && (
           <TrazabilidadRolloView
             initialCodigoRollo={trazabilidadCodigo}
             onVerEtiqueta={handleVerEtiqueta}
@@ -241,21 +271,21 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'kardex' && (
+        {effectiveTab === 'kardex' && (
           <KardexMovimientosView
             movimientos={movimientos}
             onVerTrazabilidadRollo={handleVerTrazabilidad}
           />
         )}
 
-        {activeTab === 'telas' && (
+        {effectiveTab === 'telas' && (
           <CatalogoTelasModal
             telas={telas}
             onOpenIngresoConTela={handleOpenIngresoConTela}
           />
         )}
 
-        {activeTab === 'usuarios' && (
+        {effectiveTab === 'usuarios' && (
           <UsuariosPerfilesView
             usuarios={usuarios}
             perfiles={perfiles}
@@ -316,19 +346,25 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4 text-slate-600">
-            <button
-              onClick={() => setActiveTab('usuarios')}
-              className="hover:text-[#1a73e8] transition-colors cursor-pointer font-medium"
-            >
-              Usuarios y Perfiles ({usuarios.length})
-            </button>
-            <span>·</span>
-            <button
-              onClick={() => setActiveTab('pedidos')}
-              className="hover:text-[#1a73e8] transition-colors cursor-pointer font-medium"
-            >
-              Pedidos Pendientes ({pedidosPendientes.length})
-            </button>
+            {hasPermission(currentUser, 'usuarios', simulatedPerfil) && (
+              <>
+                <button
+                  onClick={() => setActiveTab('usuarios')}
+                  className="hover:text-[#1a73e8] transition-colors cursor-pointer font-medium"
+                >
+                  Usuarios y Perfiles ({usuarios.length})
+                </button>
+                {hasPermission(currentUser, 'pedidos', simulatedPerfil) && <span>·</span>}
+              </>
+            )}
+            {hasPermission(currentUser, 'pedidos', simulatedPerfil) && (
+              <button
+                onClick={() => setActiveTab('pedidos')}
+                className="hover:text-[#1a73e8] transition-colors cursor-pointer font-medium"
+              >
+                Pedidos Pendientes ({pedidosPendientes.length})
+              </button>
+            )}
           </div>
         </div>
       </footer>

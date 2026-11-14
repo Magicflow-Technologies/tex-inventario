@@ -29,6 +29,7 @@ import {
 } from '../data/seedData';
 import { generateUUID, generateCodigoRollo } from '../utils/uuid';
 import { supabaseRest } from './supabaseClient';
+import { resolvePerfilPermisos } from '../utils/permissions';
 
 const STORAGE_KEYS = {
   PERFILES: '8tex_inv_perfiles_v2',
@@ -173,7 +174,13 @@ class InventoryStore {
       }
 
       if (storedTelas && storedRollos && storedMovs && storedDet && storedPed && storedPedDet) {
-        this.perfiles = storedPerfiles ? JSON.parse(storedPerfiles) : JSON.parse(JSON.stringify(SEED_PERFILES));
+        const parsedPerfiles: Perfil[] = storedPerfiles
+          ? JSON.parse(storedPerfiles)
+          : JSON.parse(JSON.stringify(SEED_PERFILES));
+        this.perfiles = parsedPerfiles.map((p) => ({
+          ...p,
+          permisos: resolvePerfilPermisos(p),
+        }));
         this.usuarios = storedUsuarios ? JSON.parse(storedUsuarios) : JSON.parse(JSON.stringify(SEED_USUARIOS));
         const rawLocalTelas: Tela[] = JSON.parse(storedTelas);
         this.telas = rawLocalTelas.map((t) => ({
@@ -247,7 +254,7 @@ class InventoryStore {
 
       this.perfiles = perfiles.map((p) => ({
         ...p,
-        permisos: Array.isArray(p.permisos) ? p.permisos : [],
+        permisos: resolvePerfilPermisos(p),
       }));
       this.usuarios = usuarios;
       this.telas = telas.map((t) => {

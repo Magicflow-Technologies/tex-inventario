@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Perfil, UsuarioConPerfil, PermisoModulo } from '../types/inventory';
 import { inventoryStore } from '../services/inventoryStore';
 import {
+  CATALOGO_PERMISOS,
+  PERMISOS_POR_ROL_DEFECTO,
+  resolvePerfilPermisos,
+  getPermissionLabel,
+} from '../utils/permissions';
+import {
   Users,
   Shield,
   Plus,
@@ -9,7 +15,6 @@ import {
   X,
   CheckCircle2,
   XCircle,
-  KeyRound,
   Mail,
   Phone,
   Briefcase,
@@ -25,19 +30,6 @@ interface UsuariosPerfilesViewProps {
   perfiles: Perfil[];
   onNotify: (title: string, description: string) => void;
 }
-
-const ALL_PERMISOS: Array<{ id: PermisoModulo; label: string }> = [
-  { id: 'stock', label: 'Stock Consolidado' },
-  { id: 'pos', label: 'Punto de Venta (POS)' },
-  { id: 'pedidos', label: 'Pedidos y Facturación SUNAT' },
-  { id: 'trazabilidad', label: 'Trazabilidad Rollo' },
-  { id: 'kardex', label: 'Kárdex de Movimientos' },
-  { id: 'telas', label: 'Catálogo de Telas' },
-  { id: 'ingreso', label: 'Registrar Ingresos (IN)' },
-  { id: 'salida', label: 'Registrar Salidas (OUT)' },
-  { id: 'usuarios', label: 'Usuarios y Perfiles' },
-  { id: 'sql', label: 'Script SQL / Respaldo' },
-];
 
 export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
   usuarios,
@@ -133,7 +125,7 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
     setPCodigo('');
     setPNombre('');
     setPDescripcion('');
-    setPPermisos(['stock', 'trazabilidad']);
+    setPPermisos([...PERMISOS_POR_ROL_DEFECTO.VENTAS]);
     setPActivo(true);
     setPerfilError(null);
     setIsPerfilModalOpen(true);
@@ -144,7 +136,7 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
     setPCodigo(p.codigo);
     setPNombre(p.nombre);
     setPDescripcion(p.descripcion || '');
-    setPPermisos(Array.isArray(p.permisos) ? p.permisos : []);
+    setPPermisos(resolvePerfilPermisos(p));
     setPActivo(p.activo);
     setPerfilError(null);
     setIsPerfilModalOpen(true);
@@ -368,64 +360,97 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
       {/* TABLA 2: ochotex_bd.perfiles */}
       {subTab === 'perfiles' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {perfiles.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm flex flex-col justify-between"
-            >
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1a73e8] border border-blue-200">
-                      {p.codigo}
-                    </span>
-                    <h3 className="text-base font-bold text-slate-900 mt-1.5">{p.nombre}</h3>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEditPerfil(p)}
-                      className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                      title="Editar perfil"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => void handleDeletePerfil(p)}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                      title="Eliminar perfil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+          {perfiles.map((p) => {
+            const efectivos = resolvePerfilPermisos(p);
+            const modulos = efectivos.filter(
+              (perm) => !perm.startsWith('campo:') && !perm.startsWith('accion:')
+            );
+            const camposYAcciones = efectivos.filter(
+              (perm) => perm.startsWith('campo:') || perm.startsWith('accion:')
+            );
 
-                <p className="text-xs text-slate-600">{p.descripcion}</p>
-
-                <div className="pt-2">
-                  <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
-                    Módulos autorizados ({p.permisos?.length || 0}):
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(p.permisos || []).map((perm) => (
-                      <span
-                        key={perm}
-                        className="text-[11px] font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md border border-slate-200"
-                      >
-                        {perm}
+            return (
+              <div
+                key={p.id}
+                className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1a73e8] border border-blue-200">
+                        {p.codigo}
                       </span>
-                    ))}
+                      <h3 className="text-base font-bold text-slate-900 mt-1.5">{p.nombre}</h3>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEditPerfil(p)}
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Configurar módulos y campos del perfil"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Configurar Permisos</span>
+                      </button>
+                      <button
+                        onClick={() => void handleDeletePerfil(p)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                        title="Eliminar perfil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600">{p.descripcion}</p>
+
+                  <div className="pt-1 space-y-2.5">
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-600 mb-1.5">
+                        Módulos y Botones Visibles ({modulos.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {modulos.map((perm) => (
+                          <span
+                            key={perm}
+                            className="text-[11px] font-semibold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-lg border border-blue-200"
+                          >
+                            {getPermissionLabel(perm)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {camposYAcciones.length > 0 && (
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-500 mb-1.5">
+                          Campos y Acciones Habilitadas ({camposYAcciones.length}):
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {camposYAcciones.map((perm) => (
+                            <span
+                              key={perm}
+                              className="text-[11px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200"
+                            >
+                              {getPermissionLabel(perm)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <span>UUID: {p.id.slice(0, 13)}...</span>
-                <span className={p.activo ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                  {p.activo ? 'ACTIVO' : 'INACTIVO'}
-                </span>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>Rol: {p.codigo}</span>
+                  <span
+                    className={p.activo ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}
+                  >
+                    {p.activo ? 'ACTIVO' : 'INACTIVO'}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -589,12 +614,14 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
       {/* MODAL PERFIL */}
       {isPerfilModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
               <div className="flex items-center gap-2.5">
                 <Shield className="w-5 h-5 text-[#1a73e8]" />
                 <h3 className="text-sm font-bold text-slate-900">
-                  {editingPerfil ? `Editar Perfil (${editingPerfil.codigo})` : 'Crear Nuevo Perfil en ochotex_bd'}
+                  {editingPerfil
+                    ? `Configurar Rol / Perfil (${editingPerfil.codigo})`
+                    : 'Crear Nuevo Rol / Perfil'}
                 </h3>
               </div>
               <button
@@ -605,7 +632,10 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSavePerfil} className="p-6 space-y-4 text-xs">
+            <form
+              onSubmit={handleSavePerfil}
+              className="p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto"
+            >
               {perfilError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700">
                   {perfilError}
@@ -614,24 +644,28 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Código de Perfil *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Código de Perfil *
+                  </label>
                   <input
                     type="text"
                     value={pCodigo}
                     onChange={(e) => setPCodigo(e.target.value.toUpperCase())}
-                    placeholder="Ej. AUDITORIA"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-[#1a73e8]"
+                    placeholder="Ej. VENTAS"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-[#1a73e8]"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nombre del Perfil *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Nombre del Perfil *
+                  </label>
                   <input
                     type="text"
                     value={pNombre}
                     onChange={(e) => setPNombre(e.target.value)}
-                    placeholder="Ej. Auditor de Inventario"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                    placeholder="Ej. Ejecutivo de Ventas (POS)"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
                     required
                   />
                 </div>
@@ -644,22 +678,154 @@ export const UsuariosPerfilesView: React.FC<UsuariosPerfilesViewProps> = ({
                   value={pDescripcion}
                   onChange={(e) => setPDescripcion(e.target.value)}
                   placeholder="Descripción de responsabilidades del perfil..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
                 />
               </div>
 
+              {/* Plantillas Rápidas de Rol */}
+              <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="font-bold text-slate-700 text-[11px]">
+                  Cargar plantilla rápida:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPPermisos([...PERMISOS_POR_ROL_DEFECTO.VENTAS])}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[11px] cursor-pointer"
+                  >
+                    Rol VENTAS (Stock, POS, Pedidos, Clientes)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPPermisos([...PERMISOS_POR_ROL_DEFECTO.ALMACEN])}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-[11px] cursor-pointer"
+                  >
+                    Rol ALMACÉN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPPermisos([...PERMISOS_POR_ROL_DEFECTO.FACTURACION])}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-[11px] cursor-pointer"
+                  >
+                    Rol FACTURACIÓN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPPermisos([...PERMISOS_POR_ROL_DEFECTO.ADMIN])}
+                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-[11px] cursor-pointer"
+                  >
+                    Rol ADMIN (Todo)
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. Módulos de la Barra de Navegación */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-2">Módulos y Acciones Permitidas:</label>
-                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  {ALL_PERMISOS.map((perm) => (
-                    <label key={perm.id} className="flex items-center gap-2 cursor-pointer">
+                <label className="block font-bold text-slate-800 mb-2">
+                  1. Módulos Visibles en la Barra Superior:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  {CATALOGO_PERMISOS.filter((p) => p.categoria === 'modulo').map((perm) => (
+                    <label
+                      key={perm.id}
+                      className="flex items-start gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-blue-300"
+                    >
                       <input
                         type="checkbox"
                         checked={pPermisos.includes(perm.id)}
                         onChange={() => togglePermiso(perm.id)}
-                        className="w-4 h-4 text-[#1a73e8] rounded"
+                        className="w-4 h-4 text-[#1a73e8] rounded mt-0.5"
                       />
-                      <span className="text-slate-700">{perm.label}</span>
+                      <div>
+                        <span className="font-bold text-slate-900 block">{perm.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block">
+                          {perm.descripcion}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Botones de Operación Superior (IN / OUT) */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-2">
+                  2. Botones de Operación de Almacén (Barra Superior):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  {CATALOGO_PERMISOS.filter((p) => p.categoria === 'operacion').map((perm) => (
+                    <label
+                      key={perm.id}
+                      className="flex items-start gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-blue-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pPermisos.includes(perm.id)}
+                        onChange={() => togglePermiso(perm.id)}
+                        className="w-4 h-4 text-[#1a73e8] rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">{perm.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block">
+                          {perm.descripcion}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Permisos de Campos (Visibilidad y Edición) */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-2">
+                  3. Visibilidad y Edición de Campos por Rol:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  {CATALOGO_PERMISOS.filter((p) => p.categoria === 'campo').map((perm) => (
+                    <label
+                      key={perm.id}
+                      className="flex items-start gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-blue-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pPermisos.includes(perm.id)}
+                        onChange={() => togglePermiso(perm.id)}
+                        className="w-4 h-4 text-[#1a73e8] rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">{perm.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block">
+                          {perm.descripcion}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Permisos de Acciones Internas */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-2">
+                  4. Autorizaciones y Acciones Internas:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  {CATALOGO_PERMISOS.filter((p) => p.categoria === 'accion').map((perm) => (
+                    <label
+                      key={perm.id}
+                      className="flex items-start gap-2 p-2 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-blue-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pPermisos.includes(perm.id)}
+                        onChange={() => togglePermiso(perm.id)}
+                        className="w-4 h-4 text-[#1a73e8] rounded mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">{perm.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block">
+                          {perm.descripcion}
+                        </span>
+                      </div>
                     </label>
                   ))}
                 </div>

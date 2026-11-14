@@ -26,6 +26,7 @@ export type EstadoMovimiento = 'ACTIVO' | 'ANULADO';
 export type UnidadMedida = 'METROS' | 'KILOS';
 
 export type PermisoModulo =
+  | 'consulta_stock'
   | 'stock'
   | 'pos'
   | 'pedidos'
@@ -36,7 +37,15 @@ export type PermisoModulo =
   | 'usuarios'
   | 'sql'
   | 'ingreso'
-  | 'salida';
+  | 'salida'
+  | 'campo:ver_precio_lista'
+  | 'campo:editar_precio_pos'
+  | 'campo:ver_ubicacion_lote'
+  | 'campo:ver_stock_minimo'
+  | 'accion:aprobar_j_ventas'
+  | 'accion:aprobar_creditos'
+  | 'accion:facturar_despachar'
+  | 'accion:eliminar_registros';
 
 /** TABLA: ochotex_bd.clientes (Directorio de Clientes Comerciales) */
 export interface Cliente {

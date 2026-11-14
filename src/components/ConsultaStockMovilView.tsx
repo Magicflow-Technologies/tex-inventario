@@ -17,6 +17,8 @@ import {
 interface ConsultaStockMovilViewProps {
   stockList: StockConsolidadoTela[];
   posCartRolloIds?: string[];
+  canVerPrecioLista?: boolean;
+  canVerUbicacionLote?: boolean;
   onAgregarRolloAPos?: (rollo: RolloConTela) => void;
   onIrAPos?: () => void;
 }
@@ -57,6 +59,8 @@ function getColorHex(colorText?: string): string {
 export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
   stockList,
   posCartRolloIds = [],
+  canVerPrecioLista = true,
+  canVerUbicacionLote = true,
   onAgregarRolloAPos,
   onIrAPos,
 }) => {
@@ -389,10 +393,14 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                     {v.color}
                                   </div>
                                   <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                    <span className="font-mono font-bold text-emerald-700">
-                                      S/ {precioLista.toFixed(2)}/m
-                                    </span>
-                                    <span>·</span>
+                                    {canVerPrecioLista && (
+                                      <>
+                                        <span className="font-mono font-bold text-emerald-700">
+                                          S/ {precioLista.toFixed(2)}/m
+                                        </span>
+                                        <span>·</span>
+                                      </>
+                                    )}
                                     <span>
                                       {v.total_rollos_disponibles}{' '}
                                       {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
@@ -460,13 +468,15 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                               {rollo.codigo_rollo}
                                             </span>
                                           </div>
-                                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-mono font-semibold text-slate-700">
-                                              Lote: {rollo.lote || 'S/L'}
-                                            </span>
-                                            <span>·</span>
-                                            <span>{rollo.ubicacion || 'Almacén Central'}</span>
-                                          </div>
+                                          {canVerUbicacionLote && (
+                                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-mono font-semibold text-slate-700">
+                                                Lote: {rollo.lote || 'S/L'}
+                                              </span>
+                                              <span>·</span>
+                                              <span>{rollo.ubicacion || 'Almacén Central'}</span>
+                                            </div>
+                                          )}
                                         </div>
 
                                         <div className="flex items-center gap-2 shrink-0">
@@ -679,7 +689,9 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                             <th className="py-3 pl-6 pr-3">Cód. Color</th>
                             <th className="py-3 px-3">Artículo / Tela</th>
                             <th className="py-3 px-3">Variante de Color</th>
-                            <th className="py-3 px-3 text-right">Precio Lista</th>
+                            {canVerPrecioLista && (
+                              <th className="py-3 px-3 text-right">Precio Lista</th>
+                            )}
                             <th className="py-3 px-3 text-right">Rollos en Almacén</th>
                             <th className="py-3 px-3 text-right">Stock Disponible</th>
                             <th className="py-3 pl-3 pr-6 text-right">Rollos del Color</th>
@@ -748,14 +760,16 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                   </td>
 
                                   {/* Precio de Lista */}
-                                  <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
-                                      S/ {precioLista.toFixed(2)}
-                                      <span className="text-[10px] font-sans font-semibold text-emerald-600">
-                                        /m
+                                  {canVerPrecioLista && (
+                                    <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
+                                        S/ {precioLista.toFixed(2)}
+                                        <span className="text-[10px] font-sans font-semibold text-emerald-600">
+                                          /m
+                                        </span>
                                       </span>
-                                    </span>
-                                  </td>
+                                    </td>
+                                  )}
 
                                   {/* Rollos en Almacén */}
                                   <td className="py-3.5 px-3 text-right whitespace-nowrap">
@@ -851,12 +865,16 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                                   <th className="py-2.5 px-3 text-right">
                                                     Metraje Registrado
                                                   </th>
-                                                  <th className="py-2.5 px-3 text-left">
-                                                    Ubicación en Almacén
-                                                  </th>
-                                                  <th className="py-2.5 px-3 text-left">
-                                                    Lote / DUA
-                                                  </th>
+                                                  {canVerUbicacionLote && (
+                                                    <>
+                                                      <th className="py-2.5 px-3 text-left">
+                                                        Ubicación en Almacén
+                                                      </th>
+                                                      <th className="py-2.5 px-3 text-left">
+                                                        Lote / DUA
+                                                      </th>
+                                                    </>
+                                                  )}
                                                   <th className="py-2.5 pl-3 pr-4 text-right">
                                                     Acción (Carrito POS)
                                                   </th>
@@ -885,20 +903,24 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                                           m
                                                         </span>
                                                       </td>
-                                                      <td className="py-2.5 px-3 text-slate-700 font-medium">
-                                                        <span className="inline-flex items-center gap-1">
-                                                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                                                          <span>
-                                                            {rollo.ubicacion || 'Almacén Central'}
-                                                          </span>
-                                                        </span>
-                                                      </td>
-                                                      <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
-                                                          <Tag className="w-3 h-3 text-slate-500" />
-                                                          <span>{rollo.lote || 'S/L'}</span>
-                                                        </span>
-                                                      </td>
+                                                      {canVerUbicacionLote && (
+                                                        <>
+                                                          <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                                            <span className="inline-flex items-center gap-1">
+                                                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                                              <span>
+                                                                {rollo.ubicacion || 'Almacén Central'}
+                                                              </span>
+                                                            </span>
+                                                          </td>
+                                                          <td className="py-2.5 px-3 font-mono text-slate-700 font-semibold">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                                                              <Tag className="w-3 h-3 text-slate-500" />
+                                                              <span>{rollo.lote || 'S/L'}</span>
+                                                            </span>
+                                                          </td>
+                                                        </>
+                                                      )}
                                                       <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
                                                         <button
                                                           type="button"
