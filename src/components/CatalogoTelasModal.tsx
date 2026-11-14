@@ -562,8 +562,6 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                           <th className="py-2.5 pl-5 pr-3">Cód. Color</th>
                           <th className="py-2.5 px-3">Variante de Color</th>
                           <th className="py-2.5 px-3">Nombre / Descripción</th>
-                          <th className="py-2.5 px-3 text-right">P. Mayorista</th>
-                          <th className="py-2.5 px-3 text-right">P. Confeccionista</th>
                           <th className="py-2.5 px-3 text-right">Stock Mín. (m)</th>
                           <th className="py-2.5 px-3">Fecha Registro</th>
                           <th className="py-2.5 px-3 text-center">Estado</th>
@@ -591,12 +589,6 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                               </td>
                               <td className="py-3 px-3 font-semibold text-slate-800">
                                 {tela.nombre}
-                              </td>
-                              <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums whitespace-nowrap">
-                                S/. {grupo.precioMayorista.toFixed(2)}
-                              </td>
-                              <td className="py-3 px-3 text-right font-mono font-bold text-indigo-700 tabular-nums whitespace-nowrap">
-                                S/. {grupo.precioConfeccionista.toFixed(2)}
                               </td>
                               <td className="py-3 px-3 text-right font-mono text-slate-700 tabular-nums">
                                 {(Number(tela.stock_minimo_alerta) || 0).toFixed(2)} m

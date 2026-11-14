@@ -32,6 +32,8 @@ interface GrupoStockGeneral {
   codigoArticulo: string;
   nombreBase: string;
   ancho: string;
+  precioMayorista: number;
+  precioConfeccionista: number;
   variantes: StockConsolidadoTela[];
   totalMetros: number;
   totalRollos: number;
@@ -125,6 +127,8 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
       const groupKey = `${lineaNorm.toLowerCase()}__${codigoNorm}`;
 
       const existing = mapGrupos.get(groupKey);
+      const pMay = Number(item.precio_mayorista ?? item.precio_lista ?? 12.5);
+      const pConf = Number(item.precio_confeccionista ?? item.precio_lista ?? pMay);
       if (!existing) {
         mapGrupos.set(groupKey, {
           groupKey,
@@ -132,6 +136,8 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
           codigoArticulo: codigoNorm,
           nombreBase: nombreLimpio,
           ancho: `${(Number(item.ancho) || 1.6).toFixed(2)} m`,
+          precioMayorista: pMay,
+          precioConfeccionista: pConf,
           variantes: [{ ...item, nombre: nombreLimpio, linea: lineaNorm }],
           totalMetros: item.total_metros_disponibles,
           totalRollos: item.total_rollos_disponibles,
@@ -378,6 +384,12 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                         <span className="text-xs text-slate-500 font-medium hidden sm:inline">
                           · Ancho: <strong className="text-slate-700">{grupo.ancho}</strong>
                         </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
+                          P. Mayorista: S/ {grupo.precioMayorista.toFixed(2)}/m
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono font-black text-xs">
+                          P. Confeccionista: S/ {grupo.precioConfeccionista.toFixed(2)}/m
+                        </span>
                       </div>
                       <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
                         {grupo.nombreBase}
@@ -435,9 +447,6 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="px-2 py-0.5 rounded-md bg-white text-slate-900 border-2 border-slate-400 font-mono text-xs font-bold shadow-2xs">
                                     Cód. Color {item.codigo_color}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-xs font-bold">
-                                    S/ {precioLista.toFixed(2)}/m
                                   </span>
                                 </div>
                                 <div className="mt-1 font-bold text-slate-900 text-sm">
@@ -546,7 +555,6 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                           <tr>
                             <th className="py-3 pl-5 pr-2.5 whitespace-nowrap">Cód. Color</th>
                             <th className="py-3 px-3 min-w-[180px]">Nombre Comercial / Color</th>
-                            <th className="py-3 px-2.5 text-right whitespace-nowrap">P. Lista</th>
                             <th className="py-3 px-2.5 text-right whitespace-nowrap">Ancho</th>
                             <th className="py-3 px-2.5 text-right whitespace-nowrap">Rollos</th>
                             <th className="py-3 px-2.5 text-right whitespace-nowrap">
@@ -603,11 +611,6 @@ export const StockConsolidadoView: React.FC<StockConsolidadoViewProps> = ({
                                     <div className="text-[11px] text-blue-700 font-semibold whitespace-nowrap">
                                       {item.color}
                                     </div>
-                                  </td>
-
-                                  {/* Precio Lista */}
-                                  <td className="py-3 px-2.5 text-right font-mono text-xs font-bold text-emerald-700 whitespace-nowrap">
-                                    S/ {precioLista.toFixed(2)}
                                   </td>
 
                                   {/* Ancho */}

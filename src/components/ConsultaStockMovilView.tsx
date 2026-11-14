@@ -29,6 +29,8 @@ interface GrupoArticulo {
   codigoArticulo: string;
   nombreBase: string;
   ancho: string;
+  precioMayorista: number;
+  precioConfeccionista: number;
   variantes: StockConsolidadoTela[];
   totalMetros: number;
   totalRollos: number;
@@ -121,6 +123,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
 
       const groupKey = `${lineaNorm.toLowerCase()}__${codigoArtNorm}`;
       const existing = mapGrupos.get(groupKey);
+      const pMay = Number(item.precio_mayorista ?? item.precio_lista ?? 12.5);
+      const pConf = Number(item.precio_confeccionista ?? item.precio_lista ?? pMay);
 
       if (!existing) {
         mapGrupos.set(groupKey, {
@@ -129,6 +133,8 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
           codigoArticulo: codigoArtNorm,
           nombreBase: nombreLimpio,
           ancho: `${(Number(item.ancho) || 1.6).toFixed(2)} m`,
+          precioMayorista: pMay,
+          precioConfeccionista: pConf,
           variantes: [{ ...item, nombre: nombreLimpio, linea: lineaNorm }],
           totalMetros: item.total_metros_disponibles,
           totalRollos: item.total_rollos_disponibles,
@@ -322,6 +328,16 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                             · {grupo.variantes.length} colores
                           </span>
                         </div>
+                        {canVerPrecioLista && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[10px] font-extrabold">
+                              P. Mayorista: S/ {grupo.precioMayorista.toFixed(2)}/m
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono text-[10px] font-extrabold">
+                              P. Confecc.: S/ {grupo.precioConfeccionista.toFixed(2)}/m
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -393,14 +409,6 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                     {v.color}
                                   </div>
                                   <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                    {canVerPrecioLista && (
-                                      <>
-                                        <span className="font-mono font-bold text-emerald-700">
-                                          S/ {precioLista.toFixed(2)}/m
-                                        </span>
-                                        <span>·</span>
-                                      </>
-                                    )}
                                     <span>
                                       {v.total_rollos_disponibles}{' '}
                                       {v.total_rollos_disponibles === 1 ? 'rollo' : 'rollos'}
@@ -641,6 +649,22 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                           <span className="text-xs text-slate-500 font-semibold">
                             · Ancho: <strong className="text-slate-700">{grupo.ancho}</strong>
                           </span>
+                          {canVerPrecioLista && (
+                            <>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
+                                P. Mayorista: S/ {grupo.precioMayorista.toFixed(2)}
+                                <span className="text-[10px] font-sans font-semibold text-emerald-700">
+                                  /m
+                                </span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono font-black text-xs">
+                                P. Confeccionista: S/ {grupo.precioConfeccionista.toFixed(2)}
+                                <span className="text-[10px] font-sans font-semibold text-indigo-700">
+                                  /m
+                                </span>
+                              </span>
+                            </>
+                          )}
                         </div>
                         <p className="text-xs text-slate-600 font-semibold mt-0.5 truncate">
                           {grupo.nombreBase}
@@ -689,9 +713,6 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                             <th className="py-3 pl-6 pr-3">Cód. Color</th>
                             <th className="py-3 px-3">Artículo / Tela</th>
                             <th className="py-3 px-3">Variante de Color</th>
-                            {canVerPrecioLista && (
-                              <th className="py-3 px-3 text-right">Precio Lista</th>
-                            )}
                             <th className="py-3 px-3 text-right">Rollos en Almacén</th>
                             <th className="py-3 px-3 text-right">Stock Disponible</th>
                             <th className="py-3 pl-3 pr-6 text-right">Rollos del Color</th>
@@ -758,18 +779,6 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
                                       {v.color}
                                     </span>
                                   </td>
-
-                                  {/* Precio de Lista */}
-                                  {canVerPrecioLista && (
-                                    <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-black text-xs">
-                                        S/ {precioLista.toFixed(2)}
-                                        <span className="text-[10px] font-sans font-semibold text-emerald-600">
-                                          /m
-                                        </span>
-                                      </span>
-                                    </td>
-                                  )}
 
                                   {/* Rollos en Almacén */}
                                   <td className="py-3.5 px-3 text-right whitespace-nowrap">
