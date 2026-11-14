@@ -91,11 +91,19 @@ function getDefaultPrecioLista(t: Partial<Tela>): number {
 }
 
 function parsePrecioListaFromTela(t: Partial<Tela>): number {
+  if (typeof t.precio_mayorista === 'number' && !Number.isNaN(t.precio_mayorista) && t.precio_mayorista > 0) {
+    return Number(t.precio_mayorista);
+  }
   if (typeof t.precio_lista === 'number' && !Number.isNaN(t.precio_lista) && t.precio_lista > 0) {
     return Number(t.precio_lista);
   }
   const rawLote = String(t.lote || '');
-  const match = rawLote.match(/\[PRECIO_LISTA:([0-9.]+)\]/);
+  const matchMay = rawLote.match(/P_MAYORISTA:([0-9.]+)/);
+  if (matchMay) {
+    const val = parseFloat(matchMay[1]);
+    if (!Number.isNaN(val) && val >= 0) return val;
+  }
+  const match = rawLote.match(/\[PRECIO_LISTA:([0-9.]+)/);
   if (match) {
     const val = parseFloat(match[1]);
     if (!Number.isNaN(val) && val >= 0) return val;
@@ -103,8 +111,27 @@ function parsePrecioListaFromTela(t: Partial<Tela>): number {
   return getDefaultPrecioLista(t);
 }
 
-function encodePrecioListaInLote(precioLista: number): string {
-  return `[PRECIO_LISTA:${Number(precioLista || 0).toFixed(2)}]`;
+function parsePrecioConfeccionistaFromTela(t: Partial<Tela>): number {
+  if (
+    typeof t.precio_confeccionista === 'number' &&
+    !Number.isNaN(t.precio_confeccionista) &&
+    t.precio_confeccionista > 0
+  ) {
+    return Number(t.precio_confeccionista);
+  }
+  const rawLote = String(t.lote || '');
+  const matchConf = rawLote.match(/P_CONFECCIONISTA:([0-9.]+)/);
+  if (matchConf) {
+    const val = parseFloat(matchConf[1]);
+    if (!Number.isNaN(val) && val >= 0) return val;
+  }
+  return parsePrecioListaFromTela(t);
+}
+
+function encodePreciosInLote(precioMayorista: number, precioConfeccionista?: number): string {
+  const pMay = Number(precioMayorista || 0).toFixed(2);
+  const pConf = Number(precioConfeccionista ?? precioMayorista ?? 0).toFixed(2);
+  return `[PRECIO_LISTA:${pMay}|P_MAYORISTA:${pMay}|P_CONFECCIONISTA:${pConf}]`;
 }
 
 export function normalizeSpaces(text?: string | null): string {
@@ -183,15 +210,21 @@ class InventoryStore {
         }));
         this.usuarios = storedUsuarios ? JSON.parse(storedUsuarios) : JSON.parse(JSON.stringify(SEED_USUARIOS));
         const rawLocalTelas: Tela[] = JSON.parse(storedTelas);
-        this.telas = rawLocalTelas.map((t) => ({
-          ...t,
-          codigo: normalizeSpaces(t.codigo).toUpperCase(),
-          codigo_color: normalizeSpaces(t.codigo_color),
-          nombre: normalizeSpaces(t.nombre).replace(/8Tex/g, '8tex'),
-          color: normalizeSpaces(t.color),
-          linea: normalizeLinea(t.linea),
-          precio_lista: parsePrecioListaFromTela(t),
-        }));
+        this.telas = rawLocalTelas.map((t) => {
+          const pMay = parsePrecioListaFromTela(t);
+          const pConf = parsePrecioConfeccionistaFromTela(t);
+          return {
+            ...t,
+            codigo: normalizeSpaces(t.codigo).toUpperCase(),
+            codigo_color: normalizeSpaces(t.codigo_color),
+            nombre: normalizeSpaces(t.nombre).replace(/8Tex/g, '8tex'),
+            color: normalizeSpaces(t.color),
+            linea: normalizeLinea(t.linea),
+            precio_lista: pMay,
+            precio_mayorista: pMay,
+            precio_confeccionista: pConf,
+          };
+        });
         this.rollos = JSON.parse(storedRollos);
         this.movimientos = JSON.parse(storedMovs);
         this.detalles = JSON.parse(storedDet);
@@ -270,6 +303,8 @@ class InventoryStore {
             })
             .catch(() => null);
         }
+        const pMay = parsePrecioListaFromTela(t);
+        const pConf = parsePrecioConfeccionistaFromTela(t);
         return {
           ...t,
           codigo: normalizeSpaces(t.codigo).toUpperCase(),
@@ -277,7 +312,9 @@ class InventoryStore {
           nombre: cleanNombre,
           color: cleanColor,
           linea: cleanLinea,
-          precio_lista: parsePrecioListaFromTela(t),
+          precio_lista: pMay,
+          precio_mayorista: pMay,
+          precio_confeccionista: pConf,
           ancho: Number(t.ancho) || 1.5,
           stock_minimo_alerta: Number(t.stock_minimo_alerta) || 0,
         };
@@ -809,6 +846,8 @@ class InventoryStore {
           color: normalizeSpaces(tela.color),
           linea: normalizeLinea(tela.linea),
           precio_lista: parsePrecioListaFromTela(tela),
+          precio_mayorista: parsePrecioListaFromTela(tela),
+          precio_confeccionista: parsePrecioConfeccionistaFromTela(tela),
           ancho: Number(tela.ancho) || 1.5,
           unidad_medida: tela.unidad_medida,
           total_rollos_disponibles: totalRollos,
@@ -1431,8 +1470,19 @@ class InventoryStore {
     if (telaData.id) {
       const idx = this.telas.findIndex((t) => t.id === telaData.id);
       if (idx === -1) throw new Error('Tela no encontrada');
-      const precioListaFinal = Number(
-        telaData.precio_lista ?? parsePrecioListaFromTela(this.telas[idx])
+      const precioMayoristaFinal = Number(
+        telaData.precio_mayorista ??
+          telaData.precio_lista ??
+          parsePrecioListaFromTela(this.telas[idx])
+      );
+      const precioConfeccionistaFinal = Number(
+        telaData.precio_confeccionista ??
+          parsePrecioConfeccionistaFromTela(this.telas[idx]) ??
+          precioMayoristaFinal
+      );
+      const loteCodificado = encodePreciosInLote(
+        precioMayoristaFinal,
+        precioConfeccionistaFinal
       );
       const updated: Tela = {
         ...this.telas[idx],
@@ -1441,8 +1491,10 @@ class InventoryStore {
         codigo_color: cleanCodigoColor,
         color: telaData.color?.trim() ?? this.telas[idx].color ?? 'Estándar',
         linea: telaData.linea?.trim() ?? this.telas[idx].linea ?? 'General',
-        precio_lista: precioListaFinal,
-        lote: encodePrecioListaInLote(precioListaFinal),
+        precio_lista: precioMayoristaFinal,
+        precio_mayorista: precioMayoristaFinal,
+        precio_confeccionista: precioConfeccionistaFinal,
+        lote: loteCodificado,
         ancho: Number(telaData.ancho ?? this.telas[idx].ancho ?? 1.5),
         unidad_medida: telaData.unidad_medida ?? this.telas[idx].unidad_medida ?? 'METROS',
         stock_minimo_alerta: Number(telaData.stock_minimo_alerta ?? this.telas[idx].stock_minimo_alerta ?? 0),
@@ -1458,7 +1510,7 @@ class InventoryStore {
         nombre: updated.nombre,
         color: updated.color,
         linea: updated.linea,
-        lote: encodePrecioListaInLote(updated.precio_lista),
+        lote: loteCodificado,
         ancho: updated.ancho,
         unidad_medida: updated.unidad_medida,
         stock_minimo_alerta: updated.stock_minimo_alerta,
@@ -1472,7 +1524,15 @@ class InventoryStore {
 
       return updated;
     } else {
-      const precioListaNuevo = Number(telaData.precio_lista) || getDefaultPrecioLista(telaData);
+      const precioMayoristaNuevo =
+        Number(telaData.precio_mayorista ?? telaData.precio_lista) ||
+        getDefaultPrecioLista(telaData);
+      const precioConfeccionistaNuevo =
+        Number(telaData.precio_confeccionista) || precioMayoristaNuevo;
+      const loteCodificado = encodePreciosInLote(
+        precioMayoristaNuevo,
+        precioConfeccionistaNuevo
+      );
       const newTela: Tela = {
         id: generateUUID(),
         codigo: cleanCodigo,
@@ -1480,8 +1540,10 @@ class InventoryStore {
         codigo_color: cleanCodigoColor,
         color: telaData.color?.trim() || 'Estándar',
         linea: telaData.linea?.trim() || 'Línea General',
-        precio_lista: precioListaNuevo,
-        lote: encodePrecioListaInLote(precioListaNuevo),
+        precio_lista: precioMayoristaNuevo,
+        precio_mayorista: precioMayoristaNuevo,
+        precio_confeccionista: precioConfeccionistaNuevo,
+        lote: loteCodificado,
         ancho: Number(telaData.ancho) || 1.5,
         unidad_medida: 'METROS',
         stock_minimo_alerta: Number(telaData.stock_minimo_alerta) || 0,
@@ -1499,7 +1561,7 @@ class InventoryStore {
         nombre: newTela.nombre,
         color: newTela.color,
         linea: newTela.linea,
-        lote: encodePrecioListaInLote(newTela.precio_lista),
+        lote: loteCodificado,
         ancho: newTela.ancho,
         unidad_medida: newTela.unidad_medida,
         stock_minimo_alerta: newTela.stock_minimo_alerta,

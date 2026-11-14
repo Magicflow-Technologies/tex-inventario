@@ -41,8 +41,9 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
   const [colorNombre, setColorNombre] = useState('');
   // 3. Línea: (texto)
   const [linea, setLinea] = useState('');
-  // 4. Precio de Lista: (numérico con decimal)
-  const [precioLista, setPrecioLista] = useState('12.50');
+  // 4. Precios (reutilizando el campo Precio de Lista para P. Mayorista y P. Confeccionista)
+  const [precioMayorista, setPrecioMayorista] = useState('12.50');
+  const [precioConfeccionista, setPrecioConfeccionista] = useState('13.00');
   // 5. Ancho: (unidad de medida metros)
   const [ancho, setAncho] = useState('1.50');
   // 6. Fecha: (de registro automático)
@@ -60,7 +61,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       (t.codigo_color && t.codigo_color.toLowerCase().includes(q)) ||
       (t.color && t.color.toLowerCase().includes(q)) ||
       (t.linea && t.linea.toLowerCase().includes(q)) ||
-      String(t.precio_lista || '').includes(q)
+      String(t.precio_mayorista ?? t.precio_lista ?? '').includes(q) ||
+      String(t.precio_confeccionista ?? t.precio_lista ?? '').includes(q)
     );
   });
 
@@ -70,9 +72,10 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
     setCodigoColor('');
     setNombre('');
     setColorNombre('');
-    setLinea('Sastrería Formal');
-    setPrecioLista('12.50');
-    setAncho('1.50');
+    setLinea('Moda Masculino');
+    setPrecioMayorista('12.50');
+    setPrecioConfeccionista('13.00');
+    setAncho('1.60');
     setFechaRegistroDisplay(new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' }));
     setStockMinimo('100.00');
     setActivo(true);
@@ -81,14 +84,17 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
   };
 
   const handleOpenEdit = (tela: Tela) => {
+    const pMay = Number(tela.precio_mayorista ?? tela.precio_lista ?? 12.5);
+    const pConf = Number(tela.precio_confeccionista ?? tela.precio_lista ?? pMay);
     setEditingTela(tela);
     setCodigoArticulo(tela.codigo);
     setCodigoColor(tela.codigo_color || '');
     setNombre(tela.nombre);
     setColorNombre(tela.color);
     setLinea(tela.linea || '');
-    setPrecioLista(Number(tela.precio_lista || 12.5).toFixed(2));
-    setAncho(String(tela.ancho || 1.5));
+    setPrecioMayorista(pMay.toFixed(2));
+    setPrecioConfeccionista(pConf.toFixed(2));
+    setAncho(String(tela.ancho || 1.6));
     setFechaRegistroDisplay(
       new Date(tela.created_at).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
     );
@@ -148,9 +154,15 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       return;
     }
 
-    const precioListaNum = parseFloat(precioLista);
-    if (isNaN(precioListaNum) || precioListaNum < 0) {
-      setFormError('El Precio de Lista debe ser un número válido con decimales (ej. 12.50).');
+    const precioMayoristaNum = parseFloat(precioMayorista);
+    if (isNaN(precioMayoristaNum) || precioMayoristaNum < 0) {
+      setFormError('El P. Mayorista debe ser un número válido con decimales (ej. 12.50).');
+      return;
+    }
+
+    const precioConfeccionistaNum = parseFloat(precioConfeccionista);
+    if (isNaN(precioConfeccionistaNum) || precioConfeccionistaNum < 0) {
+      setFormError('El P. Confeccionista debe ser un número válido con decimales (ej. 13.00).');
       return;
     }
 
@@ -162,7 +174,9 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
         nombre: nombre.trim(),
         color: colorNombre.trim() || `Color ${cleanColorCode}`,
         linea: linea.trim() || 'Línea General',
-        precio_lista: Number(precioListaNum.toFixed(2)),
+        precio_lista: Number(precioMayoristaNum.toFixed(2)),
+        precio_mayorista: Number(precioMayoristaNum.toFixed(2)),
+        precio_confeccionista: Number(precioConfeccionistaNum.toFixed(2)),
         ancho: anchoNum,
         unidad_medida: 'METROS',
         stock_minimo_alerta: parseFloat(stockMinimo) || 0,
@@ -245,7 +259,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 <th className="py-3 px-3">Cód. Color</th>
                 <th className="py-3 px-3">Nombre / Descripción</th>
                 <th className="py-3 px-3">Línea</th>
-                <th className="py-3 px-3 text-right">Precio de Lista</th>
+                <th className="py-3 px-3 text-right">P. Mayorista</th>
+                <th className="py-3 px-3 text-right">P. Confeccionista</th>
                 <th className="py-3 px-3 text-right">Ancho (m)</th>
                 <th className="py-3 px-3 text-right">Stock Mín. (m)</th>
                 <th className="py-3 px-3">Fecha Registro</th>
@@ -254,7 +269,12 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((tela) => (
+              {filtered.map((tela) => {
+                const pMayorista = Number(tela.precio_mayorista ?? tela.precio_lista ?? 0);
+                const pConfeccionista = Number(
+                  tela.precio_confeccionista ?? tela.precio_lista ?? pMayorista
+                );
+                return (
                 <tr key={tela.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3.5 px-3 font-mono font-bold text-[#1a73e8]">
                     {tela.codigo}
@@ -270,7 +290,10 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     {normalizeLinea(tela.linea)}
                   </td>
                   <td className="py-3.5 px-3 text-right font-mono font-extrabold text-emerald-700 tabular-nums whitespace-nowrap">
-                    S/. {(Number(tela.precio_lista) || 0).toFixed(2)}
+                    S/. {pMayorista.toFixed(2)}
+                  </td>
+                  <td className="py-3.5 px-3 text-right font-mono font-extrabold text-blue-700 tabular-nums whitespace-nowrap">
+                    S/. {pConfeccionista.toFixed(2)}
                   </td>
                   <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
                     {(Number(tela.ancho) || 1.5).toFixed(2)} m
@@ -325,7 +348,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
@@ -334,7 +358,7 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
       {/* FORMULARIO MODAL: Alta / Edición de Tela */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden my-auto animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in duration-200">
             {/* Header del Formulario */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
               <div className="flex items-center gap-3">
@@ -427,8 +451,8 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 </div>
               </div>
 
-              {/* Grupo 3: Línea, Precio de Lista y Ancho (en metros) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Grupo 3: Línea, P. Mayorista, P. Confeccionista y Ancho (en metros) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Línea * <span className="font-normal text-slate-500">(texto)</span>
@@ -444,9 +468,9 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Precio de Lista *</span>
-                    <span className="text-emerald-700 font-mono text-[11px]">(S/. / m)</span>
+                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between gap-1">
+                    <span>P. Mayorista *</span>
+                    <span className="text-emerald-700 font-mono text-[10px]">(S/. / m)</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono font-bold">
@@ -456,10 +480,32 @@ export const CatalogoTelasModal: React.FC<CatalogoTelasModalProps> = ({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={precioLista}
-                      onChange={(e) => setPrecioLista(e.target.value)}
+                      value={precioMayorista}
+                      onChange={(e) => setPrecioMayorista(e.target.value)}
                       placeholder="12.50"
-                      className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl pl-9 pr-3 py-2 font-mono font-extrabold text-emerald-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
+                      className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl pl-9 pr-2.5 py-2 font-mono font-extrabold text-emerald-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between gap-1">
+                    <span>P. Confeccionista *</span>
+                    <span className="text-emerald-700 font-mono text-[10px]">(S/. / m)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono font-bold">
+                      S/.
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={precioConfeccionista}
+                      onChange={(e) => setPrecioConfeccionista(e.target.value)}
+                      placeholder="13.00"
+                      className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl pl-9 pr-2.5 py-2 font-mono font-extrabold text-emerald-900 focus:bg-white focus:outline-none focus:border-[#1a73e8] focus:ring-3 focus:ring-blue-100 transition-all"
                       required
                     />
                   </div>
