@@ -150,7 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
-                <span>POS</span>
+                <span>Ventas</span>
               </button>
             )}
 
@@ -372,7 +372,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-600'
             }`}
           >
-            POS
+            Ventas
           </button>
         )}
 

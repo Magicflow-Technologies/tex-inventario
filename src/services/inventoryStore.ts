@@ -1264,10 +1264,11 @@ class InventoryStore {
     items: Array<{
       rollo_id: string;
       precio_metro: number;
+      metraje_custom?: number;
     }>;
   }): PedidoCompleto {
     if (!data.items || data.items.length === 0) {
-      throw new Error('Debe agregar al menos un rollo en stock para generar el pedido');
+      throw new Error('Debe agregar al menos un ítem en stock para generar el pedido');
     }
     if (!data.cliente_nombre.trim()) {
       throw new Error('El nombre o Razón Social del cliente es obligatorio');
@@ -1287,13 +1288,16 @@ class InventoryStore {
       if (!rollo) {
         throw new Error(`Rollo no encontrado (${item.rollo_id})`);
       }
-      if (rollo.estado !== 'DISPONIBLE') {
+      if (rollo.estado !== 'DISPONIBLE' && !rollosReservadosIds.includes(rollo.id)) {
         throw new Error(
           `El rollo ${rollo.codigo_rollo} ya no está disponible (Estado: ${rollo.estado})`
         );
       }
 
-      const metraje = Number(rollo.metraje);
+      const metraje =
+        item.metraje_custom !== undefined && Number(item.metraje_custom) > 0
+          ? Number(Number(item.metraje_custom).toFixed(2))
+          : Number(rollo.metraje);
       const precio = Number(item.precio_metro) || 0;
       const subtotal = Number((metraje * precio).toFixed(2));
 
@@ -1301,7 +1305,9 @@ class InventoryStore {
       totalImporte += subtotal;
 
       rollo.estado = 'RESERVADO';
-      rollosReservadosIds.push(rollo.id);
+      if (!rollosReservadosIds.includes(rollo.id)) {
+        rollosReservadosIds.push(rollo.id);
+      }
 
       detallesNuevos.push({
         id: generateUUID(),

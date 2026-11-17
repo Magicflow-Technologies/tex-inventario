@@ -157,6 +157,16 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   const [articulosAbiertos, setArticulosAbiertos] = useState<Record<string, boolean>>({});
   const [coloresAbiertos, setColoresAbiertos] = useState<Record<string, boolean>>({});
 
+  // Flag para ocultar el desglose de rollos abajo sin borrar la lógica
+  const MOSTRAR_DESGLOSE_ROLLOS_POS = false;
+
+  // Ventas por cantidad de metros ingresada desde el Cuadro Emergente (tela.id -> metros)
+  const [ventasPorMetro, setVentasPorMetro] = useState<Record<string, number>>({});
+  const [modalVentaColor, setModalVentaColor] = useState<VarianteColorNodo | null>(null);
+  const [inputMetrosModal, setInputMetrosModal] = useState<string>('');
+  const [inputPrecioModal, setInputPrecioModal] = useState<string>('');
+  const [errorModalVenta, setErrorModalVenta] = useState<string | null>(null);
+
   // Modales de Carrito (móvil) y Pantalla de Éxito
   const [isCarritoOpen, setIsCarritoOpen] = useState<boolean>(false);
   const [pedidoExitoso, setPedidoExitoso] = useState<{
@@ -388,12 +398,12 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       .filter((grupoLinea) => grupoLinea.articulos.length > 0);
   }, [catalogoJerarquico, lineaFiltro, busquedaTexto]);
 
-  // Rollos seleccionados enriquecidos con su tela y precio negociado
+  // Rollos e ítems por metraje seleccionados enriquecidos con su tela y precio negociado
   const rollosSeleccionadosDetalle = useMemo(() => {
     const telaMap = new Map<string, Tela>();
     telas.forEach((t) => telaMap.set(t.id, t));
 
-    return rollosSeleccionadosIds
+    const itemsPorRollo = rollosSeleccionadosIds
       .map((id) => {
         const rollo = rollosDisponiblesMap.get(id);
         if (!rollo) return null;
@@ -406,11 +416,39 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           tela,
           precioLista,
           precioNegociado,
+          metrajeCustom: undefined as number | undefined,
           subtotal: Number(rollo.metraje) * precioNegociado,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-  }, [rollosSeleccionadosIds, rollosDisponiblesMap, telas, preciosNegociados]);
+
+    const itemsPorMetro = Object.entries(ventasPorMetro)
+      .map(([telaId, metros]) => {
+        const m = Number(metros);
+        if (!m || m <= 0) return null;
+        const tela = telaMap.get(telaId);
+        if (!tela) return null;
+        const baseRollo = allRollosDisponibles.find((r) => r.tela_id === telaId);
+        if (!baseRollo) return null;
+        const precioLista = getPrecioLista(tela);
+        const precioNegociado = getPrecioNegociado(tela);
+        const rolloVirtual: RolloConTela = {
+          ...baseRollo,
+          metraje: m,
+        };
+        return {
+          rollo: rolloVirtual,
+          tela,
+          precioLista,
+          precioNegociado,
+          metrajeCustom: m,
+          subtotal: Number((m * precioNegociado).toFixed(2)),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    return [...itemsPorRollo, ...itemsPorMetro];
+  }, [rollosSeleccionadosIds, ventasPorMetro, rollosDisponiblesMap, allRollosDisponibles, telas, preciosNegociados]);
 
   // Totales en vivo
   const totalRollos = rollosSeleccionadosDetalle.length;
@@ -436,12 +474,77 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     }));
   };
 
-  // Toggle acordeón variante de color
+  // Toggle acordeón variante de color (o abrir modal cuando el desglose está oculto)
   const toggleColorDesglose = (telaId: string, defaultOpen: boolean) => {
     setColoresAbiertos((prev) => ({
       ...prev,
       [telaId]: !(prev[telaId] ?? defaultOpen),
     }));
+  };
+
+  // Abrir el Cuadro Emergente (Modal) para vender por cantidad de metros en PC y Móvil
+  const abrirModalVentaColor = (col: VarianteColorNodo) => {
+    const totalDisp = col.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+    if (totalDisp <= 0) {
+      mostrarToastCalle('Este código de color no tiene stock disponible');
+      return;
+    }
+    const yaEnPedido = ventasPorMetro[col.tela.id];
+    const sugeridoMetros = yaEnPedido ? yaEnPedido.toFixed(2) : Math.min(50, totalDisp).toFixed(2);
+    const precioActual = getPrecioNegociado(col.tela);
+    setModalVentaColor(col);
+    setInputMetrosModal(sugeridoMetros);
+    setInputPrecioModal(precioActual.toFixed(2));
+    setErrorModalVenta(null);
+  };
+
+  const confirmarVentaPorMetroModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalVentaColor) return;
+    const totalDisp = modalVentaColor.rollos.reduce((acc, r) => acc + Number(r.metraje), 0);
+    const metrosNum = parseFloat(inputMetrosModal);
+    const precioNum = parseFloat(inputPrecioModal);
+
+    if (Number.isNaN(metrosNum) || metrosNum <= 0) {
+      setErrorModalVenta('Ingresa una cantidad en metros mayor a 0.');
+      return;
+    }
+    if (metrosNum > totalDisp) {
+      setErrorModalVenta(
+        `La cantidad solicitada (${metrosNum.toFixed(2)} m) supera el stock disponible (${totalDisp.toFixed(2)} m).`
+      );
+      return;
+    }
+    if (!Number.isNaN(precioNum) && precioNum > 0) {
+      setPreciosNegociados((prev) => ({
+        ...prev,
+        [modalVentaColor.tela.id]: Number(precioNum.toFixed(2)),
+      }));
+    }
+
+    setVentasPorMetro((prev) => ({
+      ...prev,
+      [modalVentaColor.tela.id]: Number(metrosNum.toFixed(2)),
+    }));
+    mostrarToastCalle(
+      `+ ${metrosNum.toFixed(2)} m de Cód. ${modalVentaColor.codigoColor} (${modalVentaColor.nombreColor}) agregados`
+    );
+    setModalVentaColor(null);
+  };
+
+  const quitarVentaPorMetroColor = (telaId: string) => {
+    setVentasPorMetro((prev) => {
+      const next = { ...prev };
+      delete next[telaId];
+      return next;
+    });
+    setRollosSeleccionadosIds((prev) => {
+      const rollosDeTela = allRollosDisponibles
+        .filter((r) => r.tela_id === telaId)
+        .map((r) => r.id);
+      return prev.filter((id) => !rollosDeTela.includes(id));
+    });
+    mostrarToastCalle('Color retirado del pedido');
   };
 
   // Marcar / Desmarcar Rollo Físico
@@ -650,6 +753,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         items: rollosSeleccionadosDetalle.map((item) => ({
           rollo_id: item.rollo.id,
           precio_metro: item.precioNegociado,
+          metraje_custom: item.metrajeCustom,
         })),
       });
 
@@ -661,6 +765,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         requiereAutorizacionJefe: requiereAprobacionJefeVentas,
       });
       setRollosSeleccionadosIds([]);
+      setVentasPorMetro({});
       onPedidoCreado(nuevoPedido);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al registrar el pedido');
@@ -670,6 +775,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   const iniciarNuevoPedidoCalle = () => {
     setPedidoExitoso(null);
     setRollosSeleccionadosIds([]);
+    setVentasPorMetro({});
     mostrarToastCalle('Listo para nuevo pedido');
   };
 
@@ -692,21 +798,29 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     const precioRebajado = precioNegociadoActual < col.precioLista;
 
     const marcadosColor = col.rollos.filter((r) => rollosSeleccionadosIds.includes(r.id)).length;
+    const metrosEnPedidoColor = ventasPorMetro[col.tela.id] || 0;
+    const enPedido = marcadosColor > 0 || metrosEnPedidoColor > 0;
 
     return (
       <div
         key={col.tela.id}
         className={`transition ${
-          marcadosColor > 0
+          enPedido
             ? 'bg-blue-50/30'
             : tieneStock
             ? 'bg-white'
             : 'bg-slate-50/40 opacity-65'
         }`}
       >
-        {/* Fila Principal del Código de Color (Tocable para desplegar sus rollos) */}
+        {/* Fila Principal del Código de Color (Tocable para abrir el Cuadro Emergente de Venta por Metro) */}
         <div
-          onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
+          onClick={() => {
+            if (MOSTRAR_DESGLOSE_ROLLOS_POS) {
+              toggleColorDesglose(col.tela.id, defaultOpen);
+            } else {
+              abrirModalVentaColor(col);
+            }
+          }}
           className="p-3 cursor-pointer flex items-center justify-between gap-2.5 hover:bg-blue-50/30 transition"
         >
           <div className="flex items-center gap-2.5 min-w-0">
@@ -733,21 +847,21 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs font-extrabold text-blue-700 truncate">{col.nombreColor}</p>
               </div>
-              <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+              <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5 flex-wrap">
                 <Layers className="w-3 h-3 text-slate-400 shrink-0" />
                 <span>
-                  {rollosCount} {rollosCount === 1 ? 'rollo disponible' : 'rollos disponibles'}
+                  {rollosCount} {rollosCount === 1 ? 'rollo disp.' : 'rollos disp.'}
                 </span>
-                {marcadosColor > 0 && (
-                  <span className="ml-1 text-[10px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                    {marcadosColor} en pedido
+                {metrosEnPedidoColor > 0 && (
+                  <span className="ml-1 text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded font-mono">
+                    {metrosEnPedidoColor.toFixed(2)} m en pedido
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="text-right">
               <div
                 className={`text-sm font-black font-mono ${
@@ -757,30 +871,41 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 {totalMetrosColor.toFixed(2)}
                 <span className="text-[10px] text-blue-600 font-bold font-sans ml-0.5">m</span>
               </div>
-              <span
-                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  tieneStock
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-slate-100 text-slate-400 border border-slate-200'
-                }`}
-              >
-                {tieneStock ? 'Ver rollos' : 'Sin Stock'}
-              </span>
+              <span className="text-[10px] text-slate-400 font-semibold block">Disponible</span>
             </div>
-            <div
-              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-transform ${
-                abiertoColor
-                  ? 'rotate-180 bg-blue-100 text-blue-700'
-                  : 'bg-slate-100 text-slate-500'
+
+            <button
+              type="button"
+              disabled={!tieneStock}
+              onClick={(e) => {
+                e.stopPropagation();
+                abrirModalVentaColor(col);
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-2xs transition active:scale-95 cursor-pointer ${
+                !tieneStock
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : metrosEnPedidoColor > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </div>
+              {metrosEnPedidoColor > 0 ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{metrosEnPedidoColor.toFixed(0)}m</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Vender</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* NIVEL 3: Desglose de Rollos Físicos al hacer clic en el Código de Color */}
-        {abiertoColor && (
+        {/* NIVEL 3: Desglose de Rollos Físicos (Oculto por el momento sin borrar la lógica) */}
+        {MOSTRAR_DESGLOSE_ROLLOS_POS && abiertoColor && (
           <div className="bg-slate-50/90 border-t border-slate-200/80 p-3 space-y-2 max-h-96 overflow-y-auto">
             {tieneStock ? (
               col.rollos.map((rollo, idx) => {
@@ -1225,7 +1350,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             </div>
             <div>
               <span className="text-sm font-black tracking-widest text-slate-900">
-                PUNTO DE VENTA (POS)
+                VENTAS
               </span>
             </div>
           </div>
@@ -1418,7 +1543,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                   <th className="py-3 px-3">Variante de Color</th>
                                   <th className="py-3 px-3 text-right">Rollos Disp.</th>
                                   <th className="py-3 px-3 text-right">Stock Disp.</th>
-                                  <th className="py-3 pl-3 pr-5 text-right">Rollos del Color</th>
+                                  <th className="py-3 pl-3 pr-5 text-right">Venta por Metro</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 text-xs">
@@ -1433,22 +1558,26 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                   const abiertoColor = Boolean(
                                     coloresAbiertos[col.tela.id] ?? defaultOpen
                                   );
-                                  const precioNegociadoActual = getPrecioNegociado(col.tela);
-                                  const precioRebajado = precioNegociadoActual < col.precioLista;
                                   const marcadosColor = col.rollos.filter((r) =>
                                     rollosSeleccionadosIds.includes(r.id)
                                   ).length;
+                                  const metrosEnPedidoColor = ventasPorMetro[col.tela.id] || 0;
+                                  const enPedido = marcadosColor > 0 || metrosEnPedidoColor > 0;
 
                                   return (
                                     <React.Fragment key={col.tela.id}>
                                       {/* Fila Apilada del Código de Color */}
                                       <tr
-                                        onClick={() => toggleColorDesglose(col.tela.id, defaultOpen)}
+                                        onClick={() => {
+                                          if (MOSTRAR_DESGLOSE_ROLLOS_POS) {
+                                            toggleColorDesglose(col.tela.id, defaultOpen);
+                                          } else {
+                                            abrirModalVentaColor(col);
+                                          }
+                                        }}
                                         className={`cursor-pointer transition ${
-                                          abiertoColor
-                                            ? 'bg-blue-50/40'
-                                            : marcadosColor > 0
-                                            ? 'bg-blue-50/20 hover:bg-blue-50/40'
+                                          enPedido
+                                            ? 'bg-blue-50/30 hover:bg-blue-50/50'
                                             : tieneStock
                                             ? 'hover:bg-blue-50/30 bg-white'
                                             : 'bg-slate-50/40 opacity-65'
@@ -1468,11 +1597,6 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                                   : 'bg-slate-100 text-slate-500 border-slate-300'
                                               }`}
                                             >
-                                              {abiertoColor ? (
-                                                <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
-                                              ) : (
-                                                <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                                              )}
                                               <span>{col.codigoColor}</span>
                                             </span>
                                           </div>
@@ -1494,12 +1618,9 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                           <div className="font-extrabold text-blue-700 text-xs">
                                             {col.nombreColor}
                                           </div>
-                                          {marcadosColor > 0 && (
-                                            <span className="inline-block mt-0.5 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                                              {marcadosColor}{' '}
-                                              {marcadosColor === 1
-                                                ? 'rollo en pedido'
-                                                : 'rollos en pedido'}
+                                          {metrosEnPedidoColor > 0 && (
+                                            <span className="inline-block mt-0.5 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
+                                              {metrosEnPedidoColor.toFixed(2)} m en pedido
                                             </span>
                                           )}
                                         </td>
@@ -1531,36 +1652,40 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                                           </div>
                                         </td>
 
-                                        {/* Botón Desplegar Rollos del Color */}
+                                        {/* Botón Abrir Cuadro Emergente de Venta por Metro */}
                                         <td className="py-3.5 pl-3 pr-5 text-right whitespace-nowrap">
                                           <button
                                             type="button"
+                                            disabled={!tieneStock}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              toggleColorDesglose(col.tela.id, defaultOpen);
+                                              abrirModalVentaColor(col);
                                             }}
-                                            className={`px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer ${
-                                              abiertoColor
-                                                ? 'bg-blue-600 text-white shadow-2xs'
-                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+                                              !tieneStock
+                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                : metrosEnPedidoColor > 0
+                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
                                             }`}
                                           >
-                                            <span>
-                                              {abiertoColor
-                                                ? 'Ocultar Rollos'
-                                                : `Ver Rollos (${rollosCount})`}
-                                            </span>
-                                            <ChevronDown
-                                              className={`w-3.5 h-3.5 transition-transform ${
-                                                abiertoColor ? 'rotate-180' : ''
-                                              }`}
-                                            />
+                                            {metrosEnPedidoColor > 0 ? (
+                                              <>
+                                                <Check className="w-3.5 h-3.5" />
+                                                <span>En Pedido ({metrosEnPedidoColor.toFixed(2)} m)</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Plus className="w-3.5 h-3.5" />
+                                                <span>+ Vender / Agregar</span>
+                                              </>
+                                            )}
                                           </button>
                                         </td>
                                       </tr>
 
-                                      {/* NIVEL 3: Despliegue de Rollos Físicos del Código de Color */}
-                                      {abiertoColor && (
+                                      {/* NIVEL 3: Despliegue de Rollos Físicos del Código de Color (Oculto por el momento sin borrar) */}
+                                      {MOSTRAR_DESGLOSE_ROLLOS_POS && abiertoColor && (
                                         <tr>
                                           <td
                                             colSpan={7}
@@ -1887,16 +2012,19 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   </div>
                 </div>
 
-                {/* 3. Lista de Rollos Seleccionados en el Pedido */}
+                {/* 3. Lista de Ítems / Rollos Seleccionados en el Pedido */}
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-black text-slate-700 uppercase tracking-wider text-[11px]">
-                      Rollos en el Pedido ({totalRollos})
+                      Detalle del Pedido ({totalRollos})
                     </span>
                     {totalRollos > 0 && (
                       <button
                         type="button"
-                        onClick={() => setRollosSeleccionadosIds([])}
+                        onClick={() => {
+                          setRollosSeleccionadosIds([]);
+                          setVentasPorMetro({});
+                        }}
                         className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
                       >
                         Vaciar
@@ -1906,7 +2034,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
                   {gruposEnCarrito.length === 0 ? (
                     <div className="p-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center text-xs text-slate-400">
-                      Haz clic en <strong>"+ Marcar"</strong> sobre cualquier rollo disponible a la izquierda para agregarlo al pedido.
+                      Haz clic en <strong>"+ Vender / Agregar"</strong> sobre cualquier código de color a la izquierda para ingresar los metros a vender.
                     </div>
                   ) : (
                     <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
@@ -1949,22 +2077,18 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                           <div className="space-y-1 pt-1 border-t border-slate-200/80">
                             {grupo.rollos.map((r) => (
                               <div
-                                key={r.id}
+                                key={`${r.id}_${r.metraje}`}
                                 className="flex items-center justify-between text-[11px] text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-100"
                               >
                                 <span className="font-mono font-bold text-slate-700">
-                                  {r.codigo_rollo}
+                                  Cantidad solicitada:
                                 </span>
-                                <span className="font-bold font-mono">
+                                <span className="font-black font-mono text-blue-700">
                                   {r.metraje.toFixed(2)} m
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setRollosSeleccionadosIds((prev) =>
-                                      prev.filter((id) => id !== r.id)
-                                    )
-                                  }
+                                  onClick={() => quitarVentaPorMetroColor(grupo.tela.id)}
                                   className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
                                   title="Quitar del pedido"
                                 >
@@ -1982,9 +2106,9 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 {/* 4. Resumen e Importe Total */}
                 <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/90 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
-                    <span>Rollos Físicos Totales:</span>
+                    <span>Ítems en el Pedido:</span>
                     <strong className="text-slate-900 font-black font-mono">
-                      {totalRollos} rollos
+                      {totalRollos} {totalRollos === 1 ? 'color' : 'colores'}
                     </strong>
                   </div>
                   <div className="flex justify-between text-slate-600">
@@ -2053,6 +2177,270 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         </div>
       </div>
 
+      {/* ================= CUADRO EMERGENTE (MODAL) DE VENTA POR METRO (PC Y MÓVIL) ================= */}
+      {modalVentaColor && (() => {
+        const stockTotalMetros = modalVentaColor.rollos.reduce(
+          (acc, r) => acc + Number(r.metraje),
+          0
+        );
+        const pMay = Number(
+          modalVentaColor.tela.precio_mayorista ?? getPrecioListaSugerido(modalVentaColor.tela)
+        );
+        const pConf = Number(modalVentaColor.tela.precio_confeccionista ?? pMay);
+        const metrosActualesNum = parseFloat(inputMetrosModal) || 0;
+        const precioActualNum = parseFloat(inputPrecioModal) || pMay;
+        const subtotalVivo = metrosActualesNum * precioActualNum;
+        const yaEnPedido = Boolean(ventasPorMetro[modalVentaColor.tela.id]);
+
+        return (
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150 print:hidden"
+            onClick={() => setModalVentaColor(null)}
+          >
+            <form
+              onSubmit={confirmarVentaPorMetroModal}
+              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl border-t sm:border border-slate-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Cabecera del Cuadro Emergente */}
+              <div className="px-5 pt-4 pb-3.5 bg-slate-50 border-b border-slate-200">
+                <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex flex-col items-center shrink-0">
+                      <span className="px-2.5 py-1 rounded-xl bg-white text-slate-900 font-mono text-xs font-black border-2 border-slate-400 shadow-2xs">
+                        {modalVentaColor.codigoColor}
+                      </span>
+                      <span
+                        className="w-5 h-1.5 rounded-full mt-1"
+                        style={{ backgroundColor: modalVentaColor.badgeColor }}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-mono font-bold text-slate-500 block">
+                        {modalVentaColor.tela.codigo} · {modalVentaColor.nombreComercial}
+                      </span>
+                      <h3 className="text-base font-black text-blue-700 leading-tight truncate">
+                        {modalVentaColor.nombreColor}
+                      </h3>
+                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-mono font-bold">
+                        Stock disp.: {stockTotalMetros.toFixed(2)} m ({modalVentaColor.rollos.length}{' '}
+                        {modalVentaColor.rollos.length === 1 ? 'rollo' : 'rollos'})
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalVentaColor(null)}
+                    className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Cuerpo del Cuadro Emergente */}
+              <div className="p-5 space-y-4">
+                {errorModalVenta && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
+                    {errorModalVenta}
+                  </div>
+                )}
+
+                {/* 1. Cantidad a Vender por Metro */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Cantidad a Vender (Metros) *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(1, Number((metrosActualesNum - 10).toFixed(2)));
+                        setInputMetrosModal(next.toFixed(2));
+                      }}
+                      className="h-11 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 font-mono font-black text-xs text-slate-700 cursor-pointer active:scale-95"
+                    >
+                      -10m
+                    </button>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.1"
+                        max={stockTotalMetros}
+                        autoFocus
+                        value={inputMetrosModal}
+                        onChange={(e) => {
+                          setInputMetrosModal(e.target.value);
+                          setErrorModalVenta(null);
+                        }}
+                        placeholder="Ej. 50.00"
+                        className="w-full h-11 text-center text-lg font-black text-slate-900 bg-white border-2 border-blue-500 rounded-xl px-3 focus:outline-none focus:ring-4 focus:ring-blue-100 font-mono"
+                        required
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-blue-600">
+                        m
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.min(
+                          stockTotalMetros,
+                          Number((metrosActualesNum + 10).toFixed(2))
+                        );
+                        setInputMetrosModal(next.toFixed(2));
+                      }}
+                      className="h-11 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 font-mono font-black text-xs text-slate-700 cursor-pointer active:scale-95"
+                    >
+                      +10m
+                    </button>
+                  </div>
+
+                  {/* Chips rápidos de metraje */}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                    {[25, 50, 100, 200]
+                      .filter((v) => v <= stockTotalMetros)
+                      .map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            setInputMetrosModal(val.toFixed(2));
+                            setErrorModalVenta(null);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 text-[11px] font-mono font-bold text-slate-700 cursor-pointer transition"
+                        >
+                          {val} m
+                        </button>
+                      ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputMetrosModal(stockTotalMetros.toFixed(2));
+                        setErrorModalVenta(null);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[11px] font-mono font-bold text-blue-700 cursor-pointer transition ml-auto"
+                    >
+                      Todo ({stockTotalMetros.toFixed(2)} m)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Selector Rápido de Tarifa (Mayorista / Confeccionista) */}
+                {canVerPrecioLista && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                      Precio por Metro (S/ /m)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setInputPrecioModal(pMay.toFixed(2))}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                          Math.abs(precioActualNum - pMay) < 0.01
+                            ? 'bg-emerald-50 border-emerald-400 text-emerald-900 ring-2 ring-emerald-100'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-[10px] font-bold uppercase block text-emerald-700">
+                          P. Mayorista
+                        </span>
+                        <span className="font-mono font-black text-sm">
+                          S/ {pMay.toFixed(2)} /m
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setInputPrecioModal(pConf.toFixed(2))}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                          Math.abs(precioActualNum - pConf) < 0.01
+                            ? 'bg-indigo-50 border-indigo-400 text-indigo-900 ring-2 ring-indigo-100'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-[10px] font-bold uppercase block text-indigo-700">
+                          P. Confeccionista
+                        </span>
+                        <span className="font-mono font-black text-sm">
+                          S/ {pConf.toFixed(2)} /m
+                        </span>
+                      </button>
+                    </div>
+
+                    {canEditarPrecioPos && (
+                      <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                        <span className="text-xs font-bold text-slate-600">
+                          Precio aplicado (S/ /m):
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-black text-slate-600">S/</span>
+                          <input
+                            type="number"
+                            step="0.10"
+                            min="0.10"
+                            value={inputPrecioModal}
+                            onChange={(e) => setInputPrecioModal(e.target.value)}
+                            className="w-20 text-right font-mono font-black text-xs bg-white border border-slate-300 rounded-lg py-1 px-2 focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Resumen Subtotal en Vivo */}
+                <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-600 block">
+                      Importe de este color
+                    </span>
+                    <span className="text-xs font-mono font-bold text-blue-700">
+                      {metrosActualesNum.toFixed(2)} m × S/ {precioActualNum.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-right font-mono font-black text-lg text-slate-900">
+                    S/ {subtotalVivo.toFixed(2)}
+                  </div>
+                </div>
+
+                {/* 4. Botones de Confirmación */}
+                <div className="flex items-center gap-2 pt-1">
+                  {yaEnPedido && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        quitarVentaPorMetroColor(modalVentaColor.tela.id);
+                        setModalVentaColor(null);
+                      }}
+                      className="px-3.5 py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold cursor-pointer transition"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setModalVentaColor(null)}
+                    className="px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/25 cursor-pointer transition active:scale-98"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{yaEnPedido ? 'Actualizar en Pedido' : '+ Agregar al Pedido'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        );
+      })()}
+
       {/* ================= PASARELA DEL CARRITO MÓVIL (BOTTOM SHEET) ================= */}
       {isCarritoOpen && (
         <div
@@ -2074,7 +2462,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                     </span>
                   </div>
                   <h3 className="text-sm font-black text-slate-900">
-                    Resumen y Desglose de Rollos
+                    Resumen del Pedido
                   </h3>
                 </div>
                 <button
@@ -2171,24 +2559,21 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                     <div className="space-y-1 pt-1 border-t border-slate-200/80">
                       {grupo.rollos.map((r) => (
                         <div
-                          key={r.id}
+                          key={`${r.id}_${r.metraje}`}
                           className="flex items-center justify-between text-[11px] text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100"
                         >
                           <span className="font-mono font-bold text-slate-700">
-                            {r.codigo_rollo}
+                            Cantidad solicitada:
                           </span>
-                          <span className="font-bold font-mono">{r.metraje.toFixed(2)} m</span>
+                          <span className="font-black font-mono text-blue-700">{r.metraje.toFixed(2)} m</span>
                           <button
                             type="button"
                             onClick={() => {
-                              setRollosSeleccionadosIds((prev) => {
-                                const next = prev.filter((id) => id !== r.id);
-                                if (next.length === 0) setIsCarritoOpen(false);
-                                return next;
-                              });
+                              quitarVentaPorMetroColor(grupo.tela.id);
+                              if (gruposEnCarrito.length <= 1) setIsCarritoOpen(false);
                             }}
                             className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
-                            title="Retirar rollo del carrito"
+                            title="Retirar del carrito"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
