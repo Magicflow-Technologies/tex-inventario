@@ -2417,23 +2417,29 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   <div className="flex justify-between text-slate-600">
                     <span>Ítems en el Pedido:</span>
                     <strong className="text-slate-900 font-black font-mono">
-                      {totalRollos} {totalRollos === 1 ? 'color' : 'colores'} ({totalMetros.toFixed(2)} m)
+                      {totalRollos} {totalRollos === 1 ? 'color' : 'colores'}
                     </strong>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Subtotal (Valor Venta):</span>
+                    <span>Metraje Total Exacto:</span>
+                    <strong className="text-blue-800 font-black font-mono">
+                      {totalMetros.toFixed(2)} m
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-slate-600 pt-1 border-t border-blue-200/60">
+                    <span>Subtotal (Sin IGV):</span>
                     <strong className="text-slate-800 font-bold font-mono">
                       S/ {totalSoles.toFixed(2)}
                     </strong>
                   </div>
-                  <div className="flex justify-between text-blue-800 font-semibold">
+                  <div className="flex justify-between text-blue-800 font-bold">
                     <span>I.G.V. (18%):</span>
                     <strong className="font-mono">
                       S/ {(totalSoles * 0.18).toFixed(2)}
                     </strong>
                   </div>
                   <div className="flex justify-between items-baseline text-sm font-black text-[#0B2144] pt-2 border-t border-blue-200">
-                    <span>Total con IGV (18%):</span>
+                    <span>Importe Total (c/ IGV):</span>
                     <span className="text-xl text-blue-900 font-mono">
                       S/{' '}
                       {(totalSoles * 1.18).toLocaleString('es-PE', {
