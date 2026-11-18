@@ -24,6 +24,7 @@ import {
   ChevronRight,
   MapPin,
   Tag,
+  FileText,
 } from 'lucide-react';
 
 interface PuntoVentaViewProps {
@@ -711,6 +712,314 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
   const imprimirPedido = () => {
     window.print();
+  };
+
+  const generarDocumentoPdfConIgv = (codigoOrdenCustom?: string) => {
+    const orden =
+      codigoOrdenCustom ||
+      pedidoExitoso?.pedido.codigo_pedido ||
+      `PED-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const itemsParaPdf =
+      rollosSeleccionadosDetalle.length > 0
+        ? rollosSeleccionadosDetalle.map((item, idx) => ({
+            num: idx + 1,
+            codigoArticulo: item.tela.codigo,
+            codigoColor: item.tela.codigo_color || 'S/C',
+            nombreTela: item.tela.nombre,
+            color: item.tela.color,
+            codigoRollo: item.rollo.codigo_rollo,
+            metraje: Number(item.rollo.metraje),
+            precioMetro: Number(item.precioNegociado),
+            subtotal: Number(item.subtotal),
+          }))
+        : (pedidoExitoso?.pedido.detalles || []).map((d, idx) => ({
+            num: idx + 1,
+            codigoArticulo: 'ART',
+            codigoColor: '',
+            nombreTela: d.tela_nombre,
+            color: d.tela_color,
+            codigoRollo: d.codigo_rollo,
+            metraje: Number(d.metraje),
+            precioMetro: Number(d.precio_metro),
+            subtotal: Number(d.subtotal),
+          }));
+
+    if (itemsParaPdf.length === 0) {
+      mostrarToastCalle('Agrega al menos 1 ítem al pedido para generar el PDF');
+      return;
+    }
+
+    const subtotalBase = itemsParaPdf.reduce((acc, it) => acc + it.subtotal, 0);
+    const totalMetrosDoc = itemsParaPdf.reduce((acc, it) => acc + it.metraje, 0);
+    const igvMonto = Number((subtotalBase * 0.18).toFixed(2));
+    const totalConIgv = Number((subtotalBase + igvMonto).toFixed(2));
+
+    const fechaActual = new Date().toLocaleDateString('es-PE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const condicionTexto =
+      condicionPago === 'CREDITO'
+        ? `CRÉDITO (${numeroLetras} Letras · ${numeroLetras * 30} días)`
+        : 'CONTADO';
+
+    const filasHtml = itemsParaPdf
+      .map(
+        (it) => `
+        <tr>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:700;color:#475569;">${it.num}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:800;color:#1e3a8a;">${it.codigoArticulo}${it.codigoColor ? ` · Cód. ${it.codigoColor}` : ''}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;">
+            <div style="font-weight:700;color:#0f172a;">${it.nombreTela}</div>
+            <div style="font-size:11px;color:#1d4ed8;font-weight:700;">Color: ${it.color}</div>
+          </td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-family:monospace;font-weight:800;">${it.metraje.toFixed(2)} m</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-family:monospace;">S/ ${it.precioMetro.toFixed(2)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-family:monospace;font-weight:800;color:#0f172a;">S/ ${it.subtotal.toFixed(2)}</td>
+        </tr>`
+      )
+      .join('');
+
+    const htmlDoc = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Documento_Pedido_${orden}_8TEX</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #0f172a;
+      background: #f1f5f9;
+      padding: 24px;
+    }
+    .toolbar {
+      max-width: 820px;
+      margin: 0 auto 16px auto;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .toolbar-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .toolbar-btn:hover { background: #1d4ed8; }
+    .toolbar-close {
+      background: #334155;
+      color: #fff;
+      border: none;
+      padding: 9px 14px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .sheet {
+      max-width: 820px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 36px 40px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border: 1px solid #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #1e3a8a;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .brand-title { font-size: 28px; font-weight: 900; color: #1e3a8a; letter-spacing: 1px; }
+    .brand-sub { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-box {
+      border: 2px solid #1e3a8a;
+      border-radius: 10px;
+      padding: 10px 18px;
+      text-align: center;
+      background: #f8fafc;
+    }
+    .client-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 12px;
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-bottom: 20px;
+    }
+    th {
+      background: #1e3a8a;
+      color: #ffffff;
+      padding: 10px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .footer-grid {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-top: 12px;
+    }
+    .totals-box {
+      width: 300px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #f8fafc;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 5px 0;
+      color: #334155;
+    }
+    .totals-row.grand {
+      border-top: 2px solid #1e3a8a;
+      margin-top: 6px;
+      padding-top: 10px;
+      font-size: 15px;
+      font-weight: 900;
+      color: #1e3a8a;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .toolbar { display: none !important; }
+      .sheet { box-shadow: none; border: none; padding: 15px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div>
+      <strong style="font-size:14px;">Documento / PDF de Pedido (con IGV 18%)</strong>
+      <div style="font-size:11px;color:#94a3b8;">Elige "Guardar como PDF" en el destino de impresión para descargarlo en PDF.</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="toolbar-btn" onclick="window.print()">Guardar PDF / Imprimir</button>
+      <button class="toolbar-close" onclick="window.close()">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <div class="header">
+      <div>
+        <div class="brand-title">8TEX</div>
+        <div class="brand-sub">PERÚ | Donde nacen las futuras tendencias</div>
+        <div style="font-size:13px;font-weight:800;margin-top:6px;">TEXTILES OCHO LUKAL E.I.R.L.</div>
+        <div style="font-size:11px;color:#475569;margin-top:2px;">RUC: 20608912345 · Venta Mayorista y Confeccionista Textil · Lima, Perú</div>
+      </div>
+      <div class="doc-box">
+        <div style="font-size:11px;font-weight:800;color:#475569;">PROFORMA / ORDEN DE PEDIDO</div>
+        <div style="font-size:16px;font-weight:900;color:#1e3a8a;font-family:monospace;margin:4px 0;">${orden}</div>
+        <div style="font-size:11px;color:#64748b;">Fecha: ${fechaActual}</div>
+      </div>
+    </div>
+
+    <div class="client-box">
+      <div style="line-height:1.6;">
+        <div><strong>Cliente / Razón Social:</strong> ${clienteNombre || '-'}</div>
+        <div><strong>RUC / DNI:</strong> ${clienteRuc || '-'}</div>
+        ${clienteDireccion ? `<div><strong>Dirección:</strong> ${clienteDireccion}</div>` : ''}
+      </div>
+      <div style="line-height:1.6;">
+        <div><strong>Condición de Pago:</strong> ${condicionTexto}</div>
+        ${clienteTelefono ? `<div><strong>Teléfono:</strong> ${clienteTelefono}</div>` : ''}
+        <div><strong>Metraje Total:</strong> ${totalMetrosDoc.toFixed(2)} m (${itemsParaPdf.length} ${itemsParaPdf.length === 1 ? 'ítem' : 'ítems'})</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;">#</th>
+          <th>Cód. Artículo / Color</th>
+          <th>Descripción de Tela y Variante</th>
+          <th style="text-align:right;">Cantidad (m)</th>
+          <th style="text-align:right;">P. Unit. (S/)</th>
+          <th style="text-align:right;">Subtotal (S/)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filasHtml}
+      </tbody>
+    </table>
+
+    <div class="footer-grid">
+      <div style="font-size:11px;color:#475569;line-height:1.6;max-width:440px;">
+        <div style="font-weight:800;color:#0f172a;margin-bottom:4px;">Cuentas Corrientes Oficiales Textiles Ocho Lukal E.I.R.L.:</div>
+        <div>• BCP Soles: 191-8849201-0-45 (CCI: 002-191-008849201045-88)</div>
+        <div>• BBVA Soles: 0011-0482-0100084921 (CCI: 011-482-000100084921-23)</div>
+        <div style="margin-top:8px;font-size:10px;color:#64748b;">* Documento generado por el módulo de Ventas 8tex con cálculo de IGV (18%).</div>
+      </div>
+
+      <div class="totals-box">
+        <div class="totals-row">
+          <span>Metraje Total:</span>
+          <strong style="font-family:monospace;">${totalMetrosDoc.toFixed(2)} m</strong>
+        </div>
+        <div class="totals-row">
+          <span>SUBTOTAL (Valor Venta):</span>
+          <strong style="font-family:monospace;">S/ ${subtotalBase.toFixed(2)}</strong>
+        </div>
+        <div class="totals-row" style="color:#1e40af;font-weight:700;">
+          <span>I.G.V. (18%):</span>
+          <strong style="font-family:monospace;">S/ ${igvMonto.toFixed(2)}</strong>
+        </div>
+        <div class="totals-row grand">
+          <span>TOTAL + IGV (18%):</span>
+          <span style="font-family:monospace;">S/ ${totalConIgv.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 250);
+    };
+  </script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.open();
+      win.document.write(htmlDoc);
+      win.document.close();
+    } else {
+      window.print();
+    }
   };
 
   const confirmarOrdenDesdeCarrito = () => {
@@ -2103,25 +2412,31 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   )}
                 </div>
 
-                {/* 4. Resumen e Importe Total */}
+                {/* 4. Resumen e Importe Total (con IGV 18%) */}
                 <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/90 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Ítems en el Pedido:</span>
                     <strong className="text-slate-900 font-black font-mono">
-                      {totalRollos} {totalRollos === 1 ? 'color' : 'colores'}
+                      {totalRollos} {totalRollos === 1 ? 'color' : 'colores'} ({totalMetros.toFixed(2)} m)
                     </strong>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Metraje Total Exacto:</span>
-                    <strong className="text-blue-800 font-black font-mono">
-                      {totalMetros.toFixed(2)} m
+                    <span>Subtotal (Valor Venta):</span>
+                    <strong className="text-slate-800 font-bold font-mono">
+                      S/ {totalSoles.toFixed(2)}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-blue-800 font-semibold">
+                    <span>I.G.V. (18%):</span>
+                    <strong className="font-mono">
+                      S/ {(totalSoles * 0.18).toFixed(2)}
                     </strong>
                   </div>
                   <div className="flex justify-between items-baseline text-sm font-black text-[#0B2144] pt-2 border-t border-blue-200">
-                    <span>Importe Total:</span>
+                    <span>Total con IGV (18%):</span>
                     <span className="text-xl text-blue-900 font-mono">
                       S/{' '}
-                      {totalSoles.toLocaleString('es-PE', {
+                      {(totalSoles * 1.18).toLocaleString('es-PE', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -2131,33 +2446,43 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
                 {/* 5. Botones de Acción y Confirmación */}
                 <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       disabled={totalRollos === 0}
                       onClick={() => enviarPorWhatsApp()}
-                      className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                      className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <MessageCircle className="w-4 h-4" />
+                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
                       <span>WhatsApp</span>
                     </button>
                     <button
                       type="button"
                       disabled={totalRollos === 0}
                       onClick={enviarPorCorreo}
-                      className="py-2 px-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                      className="py-2 px-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <Mail className="w-4 h-4" />
+                      <Mail className="w-3.5 h-3.5 shrink-0" />
                       <span>Correo</span>
                     </button>
                     <button
                       type="button"
                       disabled={totalRollos === 0}
                       onClick={imprimirPedido}
-                      className="py-2 px-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                      className="py-2 px-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <Printer className="w-4 h-4" />
+                      <Printer className="w-3.5 h-3.5 shrink-0" />
                       <span>Imprimir</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={totalRollos === 0}
+                      onClick={() => generarDocumentoPdfConIgv()}
+                      className="py-2 px-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                      title="Generar Documento / PDF del pedido con IGV 18%"
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" />
+                      <span>PDF (IGV)</span>
                     </button>
                   </div>
 
@@ -2586,19 +2911,27 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
               <div className="pt-3 space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-500">
-                  <span>Rollos Físicos Totales:</span>
-                  <strong className="text-slate-800 font-black">{totalRollos} rollos</strong>
+                  <span>Ítems en el Pedido:</span>
+                  <strong className="text-slate-800 font-black">
+                    {totalRollos} ({totalMetros.toFixed(2)} m)
+                  </strong>
                 </div>
                 <div className="flex justify-between text-slate-500">
-                  <span>Metraje Total Exacto:</span>
-                  <strong className="text-blue-800 font-black font-mono">
-                    {totalMetros.toFixed(2)} m
+                  <span>Subtotal (Valor Venta):</span>
+                  <strong className="text-slate-800 font-bold font-mono">
+                    S/ {totalSoles.toFixed(2)}
+                  </strong>
+                </div>
+                <div className="flex justify-between text-blue-700 font-semibold">
+                  <span>I.G.V. (18%):</span>
+                  <strong className="font-mono">
+                    S/ {(totalSoles * 0.18).toFixed(2)}
                   </strong>
                 </div>
                 <div className="flex justify-between text-sm font-black text-[#0B2144] pt-2 border-t border-slate-200">
-                  <span>Importe Total:</span>
+                  <span>Total con IGV (18%):</span>
                   <span className="text-lg text-blue-900 font-mono">
-                    S/ {totalSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                    S/ {(totalSoles * 1.18).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -2608,7 +2941,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   Acciones Inmediatas de Cierre
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
                     onClick={() => enviarPorWhatsApp()}
@@ -2634,6 +2967,15 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                   >
                     <Printer className="w-5 h-5" />
                     <span>Imprimir</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => generarDocumentoPdfConIgv()}
+                    className="py-2.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span>PDF (IGV 18%)</span>
                   </button>
                 </div>
 
@@ -2819,29 +3161,45 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
                 </strong>
               </div>
               <div className="flex justify-between text-slate-500">
-                <span>Rollos Físicos:</span>
-                <strong className="text-slate-800">
-                  {pedidoExitoso.pedido.total_rollos} rollos
-                </strong>
-              </div>
-              <div className="flex justify-between text-slate-500">
                 <span>Metraje Exacto:</span>
                 <strong className="text-blue-800 font-bold font-mono">
                   {pedidoExitoso.pedido.total_metros.toFixed(2)} m
                 </strong>
               </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Subtotal (Valor Venta):</span>
+                <strong className="text-slate-800 font-mono">
+                  S/ {pedidoExitoso.pedido.total_importe.toFixed(2)}
+                </strong>
+              </div>
+              <div className="flex justify-between text-blue-700 font-semibold">
+                <span>I.G.V. (18%):</span>
+                <strong className="font-mono">
+                  S/ {(pedidoExitoso.pedido.total_importe * 0.18).toFixed(2)}
+                </strong>
+              </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-200 text-sm font-black text-[#0B2144]">
-                <span>Total Orden:</span>
+                <span>Total + IGV (18%):</span>
                 <span className="font-mono">
                   S/{' '}
-                  {pedidoExitoso.pedido.total_importe.toLocaleString('es-PE', {
+                  {(pedidoExitoso.pedido.total_importe * 1.18).toLocaleString('es-PE', {
                     minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </span>
               </div>
             </div>
 
             <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => generarDocumentoPdfConIgv(pedidoExitoso.pedido.codigo_pedido)}
+                className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 transition cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Generar Documento / PDF (con IGV 18%)</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => enviarPorWhatsApp(pedidoExitoso.pedido.codigo_pedido)}
@@ -2887,7 +3245,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             </p>
           </div>
           <div className="border-2 border-blue-900 p-3 rounded-lg text-center">
-            <p className="text-xs font-black text-slate-800">ORDEN DE PEDIDO (CALLE)</p>
+            <p className="text-xs font-black text-slate-800">ORDEN DE PEDIDO (VENTAS)</p>
             <p className="text-sm font-black text-blue-900 font-mono">
               {pedidoExitoso?.pedido.codigo_pedido ||
                 `PED-${new Date().getFullYear()}-PRELIMINAR`}
@@ -2922,7 +3280,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         <table className="w-full text-left text-xs border-collapse mb-4">
           <thead>
             <tr className="bg-blue-900 text-white font-bold">
-              <th className="p-2 border">Código Rollo</th>
+              <th className="p-2 border">Cód. Artículo / Color</th>
               <th className="p-2 border">Línea / Artículo & Color</th>
               <th className="p-2 border text-right">Metros</th>
               <th className="p-2 border text-right">P. Metro (S/)</th>
@@ -2931,10 +3289,12 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
           </thead>
           <tbody>
             {rollosSeleccionadosDetalle.map((item) => (
-              <tr key={item.rollo.id} className="border-b text-xs">
-                <td className="p-2 border font-mono font-bold">{item.rollo.codigo_rollo}</td>
+              <tr key={`${item.rollo.id}_${item.rollo.metraje}`} className="border-b text-xs">
+                <td className="p-2 border font-mono font-bold">
+                  {item.tela.codigo} · Cód. {item.tela.codigo_color}
+                </td>
                 <td className="p-2 border">
-                  {item.tela.codigo} · {item.tela.nombre} ({item.tela.color})
+                  {item.tela.nombre} ({item.tela.color})
                 </td>
                 <td className="p-2 border text-right font-bold">
                   {item.rollo.metraje.toFixed(2)} m
@@ -2956,16 +3316,22 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
             <p>• BCP Soles: 191-8849201-0-45 (CCI: 002-191-008849201045-88)</p>
             <p>• BBVA Soles: 0011-0482-0100084921 (CCI: 011-482-000100084921-23)</p>
           </div>
-          <div className="w-60 space-y-1 text-right">
-            <p className="text-xs">
-              Total Rollos Físicos: <strong>{totalRollos}</strong>
-            </p>
+          <div className="w-64 space-y-1 text-right">
             <p className="text-xs">
               Total Metros Exactos: <strong>{totalMetros.toFixed(2)} m</strong>
             </p>
+            <p className="text-xs">
+              Subtotal (Valor Venta): <strong>S/ {totalSoles.toFixed(2)}</strong>
+            </p>
+            <p className="text-xs text-blue-800 font-bold">
+              I.G.V. (18%): <strong>S/ {(totalSoles * 0.18).toFixed(2)}</strong>
+            </p>
             <p className="text-base font-black text-blue-900 pt-1.5 border-t">
-              TOTAL A PAGAR: S/{' '}
-              {totalSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+              TOTAL + IGV (18%): S/{' '}
+              {(totalSoles * 1.18).toLocaleString('es-PE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </p>
           </div>
         </div>
