@@ -785,11 +785,13 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
       )
       .join('');
 
+    const logoUrl = `${window.location.origin}/logo-8tex.jpg`;
+
     const htmlDoc = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Documento_Pedido_${orden}_8TEX</title>
+  <title>Solicitud_de_venta_${orden}_8TEX</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -844,17 +846,22 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       border-bottom: 2px solid #1e3a8a;
       padding-bottom: 16px;
       margin-bottom: 20px;
     }
-    .brand-title { font-size: 28px; font-weight: 900; color: #1e3a8a; letter-spacing: 1px; }
-    .brand-sub { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .brand-logo {
+      height: 72px;
+      width: auto;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 6px;
+    }
     .doc-box {
       border: 2px solid #1e3a8a;
       border-radius: 10px;
-      padding: 10px 18px;
+      padding: 12px 20px;
       text-align: center;
       background: #f8fafc;
     }
@@ -923,7 +930,7 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 <body>
   <div class="toolbar">
     <div>
-      <strong style="font-size:14px;">Documento / PDF de Pedido (con IGV 18%)</strong>
+      <strong style="font-size:14px;">Solicitud de venta (con IGV 18%)</strong>
       <div style="font-size:11px;color:#94a3b8;">Elige "Guardar como PDF" en el destino de impresión para descargarlo en PDF.</div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -935,14 +942,13 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
   <div class="sheet">
     <div class="header">
       <div>
-        <div class="brand-title">8TEX</div>
-        <div class="brand-sub">PERÚ | Donde nacen las futuras tendencias</div>
-        <div style="font-size:13px;font-weight:800;margin-top:6px;">TEXTILES OCHO LUKAL E.I.R.L.</div>
+        <img src="${logoUrl}" alt="8tex Perú" class="brand-logo" />
+        <div style="font-size:13px;font-weight:800;margin-top:4px;">TEXTILES OCHO LUKAL E.I.R.L.</div>
         <div style="font-size:11px;color:#475569;margin-top:2px;">RUC: 20608912345 · Venta Mayorista y Confeccionista Textil · Lima, Perú</div>
       </div>
       <div class="doc-box">
-        <div style="font-size:11px;font-weight:800;color:#475569;">PROFORMA / ORDEN DE PEDIDO</div>
-        <div style="font-size:16px;font-weight:900;color:#1e3a8a;font-family:monospace;margin:4px 0;">${orden}</div>
+        <div style="font-size:14px;font-weight:900;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.5px;">Solicitud de venta</div>
+        <div style="font-size:16px;font-weight:900;color:#0f172a;font-family:monospace;margin:4px 0;">${orden}</div>
         <div style="font-size:11px;color:#64748b;">Fecha: ${fechaActual}</div>
       </div>
     </div>
@@ -3237,22 +3243,23 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
 
       {/* ================= COMPROBANTE DE IMPRESIÓN (MEMBRETADO OFICIAL 8TEX) ================= */}
       <div className="hidden print:block bg-white text-slate-900 p-8 font-sans">
-        <div className="border-b-2 border-blue-900 pb-4 mb-4 flex justify-between items-start">
+        <div className="border-b-2 border-blue-900 pb-4 mb-4 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-black text-blue-900 tracking-wider">8TEX</h1>
-            <p className="text-xs font-bold text-slate-500 tracking-widest uppercase">
-              PERÚ | Donde nacen las futuras tendencias
-            </p>
+            <img
+              src="/logo-8tex.jpg"
+              alt="8tex Perú"
+              className="h-16 w-auto object-contain mb-1.5"
+            />
             <p className="text-xs font-bold text-slate-800 mt-1">
               TEXTILES OCHO LUKAL E.I.R.L.
             </p>
             <p className="text-[10px] text-slate-600">
-              RUC: 20608912345 · Venta Mayorista Textil · Lima, Perú
+              RUC: 20608912345 · Venta Mayorista y Confeccionista Textil · Lima, Perú
             </p>
           </div>
           <div className="border-2 border-blue-900 p-3 rounded-lg text-center">
-            <p className="text-xs font-black text-slate-800">ORDEN DE PEDIDO (VENTAS)</p>
-            <p className="text-sm font-black text-blue-900 font-mono">
+            <p className="text-xs font-black text-blue-900 uppercase">Solicitud de venta</p>
+            <p className="text-sm font-black text-slate-900 font-mono">
               {pedidoExitoso?.pedido.codigo_pedido ||
                 `PED-${new Date().getFullYear()}-PRELIMINAR`}
             </p>
