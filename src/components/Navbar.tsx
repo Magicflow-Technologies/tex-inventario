@@ -84,25 +84,29 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between gap-4 h-16">
           {/* Zone 1: Brand + DB indicator */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-[#e8f0fe] border border-blue-200 flex items-center justify-center text-[#1a73e8] font-bold text-sm tracking-wider shadow-2xs">
-              8T
-            </div>
-            <div>
-              <button
-                onClick={() => onTabChange('consulta_stock')}
-                className="text-left font-bold tracking-tight text-slate-900 hover:text-[#1a73e8] transition-colors whitespace-nowrap text-sm block cursor-pointer"
-              >
-                Textiles Ocho Lukal
-              </button>
-              <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    supabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'
-                  }`}
-                />
-                <span>{supabaseConnected ? 'En línea' : 'Modo local'}</span>
-              </span>
-            </div>
+            <button
+              onClick={() => onTabChange('consulta_stock')}
+              className="flex items-center gap-2.5 text-left cursor-pointer group"
+            >
+              <img
+                src="/logo-8tex.jpg"
+                alt="8tex Perú"
+                className="h-9 sm:h-10 w-auto object-contain rounded-lg border border-slate-200/80 bg-white px-1.5 py-0.5 shadow-2xs"
+              />
+              <div>
+                <span className="font-bold tracking-tight text-slate-900 group-hover:text-[#1a73e8] transition-colors whitespace-nowrap text-sm block">
+                  Textiles Ocho Lukal
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      supabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                  <span>{supabaseConnected ? 'En línea' : 'Modo local'}</span>
+                </span>
+              </div>
+            </button>
           </div>
 
           {/* Zone 2: Navigation pills (Filtrados dinámicamente según el Rol / Perfil) */}

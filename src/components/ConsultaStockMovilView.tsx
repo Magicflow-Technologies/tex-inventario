@@ -191,9 +191,11 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
         <header className="bg-white text-slate-900 shadow-xs border-b border-slate-200">
           <div className="px-4 py-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-lg text-blue-700">
-                8t
-              </div>
+              <img
+                src="/logo-8tex.jpg"
+                alt="8tex Perú"
+                className="h-9 w-auto object-contain rounded-xl border border-slate-200 bg-white px-2 py-0.5 shadow-2xs"
+              />
               <div>
                 <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 leading-tight">
                   Consulta de Stock
@@ -544,9 +546,11 @@ export const ConsultaStockMovilView: React.FC<ConsultaStockMovilViewProps> = ({
         {/* Cabecera Amplia de Escritorio Clara y Marcada */}
         <div className="bg-white text-slate-900 rounded-3xl p-5 shadow-xs border border-slate-200 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-xl text-blue-700">
-              8t
-            </div>
+            <img
+              src="/logo-8tex.jpg"
+              alt="8tex Perú"
+              className="h-11 w-auto object-contain rounded-xl border border-slate-200 bg-white px-2.5 py-1 shadow-2xs"
+            />
             <div>
               <span className="text-base font-black tracking-wider text-slate-900 uppercase">
                 Consulta de Stock

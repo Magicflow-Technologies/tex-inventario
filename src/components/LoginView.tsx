@@ -39,14 +39,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-center items-center p-4 font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden">
         {/* Cabecera corporativa */}
-        <div className="p-7 pb-5 border-b border-slate-100 bg-gradient-to-b from-[#e8f0fe]/60 to-white">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-11 h-11 rounded-2xl bg-[#1a73e8] text-white flex items-center justify-center font-black text-base tracking-wider shadow-sm">
-              8T
-            </div>
-          </div>
+        <div className="p-7 pb-5 border-b border-slate-100 bg-gradient-to-b from-[#e8f0fe]/60 to-white flex flex-col items-center text-center">
+          <img
+            src="/logo-8tex.jpg"
+            alt="8tex Perú"
+            className="h-20 w-auto object-contain mb-3 rounded-xl bg-white px-3 py-1.5 border border-slate-200/80 shadow-xs"
+          />
 
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-lg font-bold text-slate-900 tracking-tight">
             Textiles Ocho Lukal E.I.R.L.
           </h1>
         </div>

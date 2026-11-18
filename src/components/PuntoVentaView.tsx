@@ -1306,15 +1306,14 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         <header className="sticky top-0 z-30 bg-white text-slate-900 shadow-xs border-b border-slate-200">
           <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-xl text-blue-700">
-                8t
-              </div>
+              <img
+                src="/logo-8tex.jpg"
+                alt="8tex Perú"
+                className="h-10 w-auto object-contain rounded-xl border border-slate-200 bg-white px-2 py-1"
+              />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black tracking-widest text-slate-900">8TEX</span>
-                  <span className="text-[9px] bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200">
-                    CALLE
-                  </span>
+                  <span className="text-xs font-black tracking-widest text-slate-900">VENTAS</span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-medium">
                   PERÚ | Donde nacen las futuras tendencias
@@ -1660,9 +1659,11 @@ export const PuntoVentaView: React.FC<PuntoVentaViewProps> = ({
         {/* Cabecera Amplia de Escritorio Clara y Marcada */}
         <div className="bg-white text-slate-900 rounded-3xl p-5 shadow-xs border border-slate-200 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center font-black text-2xl text-blue-700">
-              8t
-            </div>
+            <img
+              src="/logo-8tex.jpg"
+              alt="8tex Perú"
+              className="h-11 w-auto object-contain rounded-xl border border-slate-200 bg-white px-2.5 py-1 shadow-2xs"
+            />
             <div>
               <span className="text-sm font-black tracking-widest text-slate-900">
                 VENTAS
